@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>元素週期輪盤 · Periodic Table Wheel</title>
+<style>
+  :root{
+    --bg:#0a0e17; --panel:#111827; --panel2:#1a2332;
+    --text:#e5e7eb; --muted:#9ca3af; --accent:#22d3ee;
+    --danger:#ef4444; --ok:#34d399;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%; overflow:hidden; background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',system-ui,-apple-system,'Noto Sans TC','Noto Sans SC',sans-serif;}
+  #app{height:100%; width:100%; position:relative;}
+
+  /* ---------- 語言切換 ---------- */
+  #langBar{position:fixed; top:12px; right:12px; z-index:100; display:flex; gap:6px; background:rgba(0,0,0,.55);
+    padding:5px; border-radius:12px; backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.08);
+    transition:opacity .3s;}
+  #langBar button{background:transparent; border:none; color:var(--muted); font-size:12px; padding:6px 10px;
+    border-radius:8px; cursor:pointer; font-weight:600; letter-spacing:.3px; transition:.2s;}
+  #langBar button.active{background:var(--accent); color:#0a0e17;}
+  #langBar button:hover:not(.active){color:#fff; background:rgba(255,255,255,.08);}
+
+  /* ---------- 頁面切換 ---------- */
+  .page{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:center; padding:20px; opacity:0; transition:opacity .45s ease; overflow:hidden; z-index:1;}
+  .page.active{display:flex; opacity:1; z-index:10;}
+
+  /* ---------- 開始頁 ---------- */
+  #startPage{background:radial-gradient(ellipse at 50% 30%,#152238 0%,#0a0e17 70%);}
+  .title-block{text-align:center; margin-bottom:36px; z-index:2;}
+  .title-block h1{font-size:clamp(28px,5vw,52px); margin:0 0 8px; font-weight:800; letter-spacing:-1px;
+    background:linear-gradient(135deg,#22d3ee,#a78bfa,#f472b6); -webkit-background-clip:text;
+    background-clip:text; -webkit-text-fill-color:transparent;}
+  .title-block p{color:var(--muted); font-size:clamp(13px,1.8vw,16px); margin:0; max-width:560px; line-height:1.6;}
+  .start-btn{padding:16px 52px; font-size:18px; font-weight:800; border:none; border-radius:60px; cursor:pointer;
+    background:linear-gradient(135deg,#22d3ee,#3b82f6); color:#04121f; letter-spacing:.5px;
+    box-shadow:0 0 40px rgba(34,211,238,.35); transition:.25s; z-index:2;}
+  .start-btn:hover{transform:translateY(-2px) scale(1.02); box-shadow:0 0 60px rgba(34,211,238,.55);}
+  .start-btn:active{transform:scale(.97);}
+  .start-hint{margin-top:18px; font-size:12px; color:var(--muted); opacity:.7; z-index:2;}
+
+  /* ---------- 轉盤頁 ---------- */
+  #wheelPage{background:radial-gradient(ellipse at 50% 40%,#111b2b 0%,#0a0e17 75%); gap:18px;}
+  #wheelWrap{position:relative; width:min(82vmin,520px); height:min(82vmin,520px); flex-shrink:0; cursor:pointer;}
+  #wheelCanvas{width:100%; height:100%; display:block; border-radius:50%;
+    box-shadow:0 0 0 2px rgba(34,211,238,.15), 0 0 60px rgba(0,0,0,.7), inset 0 0 80px rgba(0,0,0,.5);}
+  #pointer{position:absolute; top:-6px; left:50%; transform:translateX(-50%); z-index:5;
+    width:0; height:0; border-left:16px solid transparent; border-right:16px solid transparent;
+    border-top:34px solid var(--accent); filter:drop-shadow(0 2px 6px rgba(34,211,238,.6)); pointer-events:none;}
+  #centerHub{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:4;
+    width:clamp(64px,12vmin,90px); height:clamp(64px,12vmin,90px); border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#1e293b,#0f172a); border:3px solid rgba(34,211,238,.4);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 0 30px rgba(0,0,0,.8), inset 0 0 20px rgba(0,0,0,.6);
+    pointer-events:none;}
+  #centerHub span{font-size:clamp(22px,4.5vmin,34px); filter:drop-shadow(0 0 8px rgba(34,211,238,.5));}
+
+  #spinBtn{padding:16px 56px; font-size:clamp(16px,2.4vw,20px); font-weight:800; border:none; border-radius:60px;
+    cursor:pointer; background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; letter-spacing:.5px;
+    box-shadow:0 8px 32px rgba(239,68,68,.4); transition:.2s; z-index:10;}
+  #spinBtn:hover:not(:disabled){transform:translateY(-2px); box-shadow:0 12px 40px rgba(239,68,68,.55);}
+  #spinBtn:active:not(:disabled){transform:scale(.97);}
+  #spinBtn:disabled{opacity:.35; cursor:not-allowed; filter:grayscale(.5);}
+  #wheelStatus{font-size:13px; color:var(--muted); height:20px; letter-spacing:.4px;}
+
+  /* ---------- 詳情頁 ---------- */
+  #detailPage{justify-content:flex-start; overflow-y:auto; padding:0; background:var(--bg);}
+  #detailPage.active{display:block;}
+  .detail-scroll{max-width:900px; margin:0 auto; padding:32px 22px 40px; min-height:100%;}
+  .detail-top{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:8px; flex-wrap:wrap;}
+  .element-hero{display:flex; align-items:center; gap:18px;}
+  .element-badge{width:76px; height:76px; border-radius:18px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; font-weight:800; line-height:1.1; flex-shrink:0;}
+  .element-badge .num{font-size:12px; opacity:.8; font-weight:600;}
+  .element-badge .sym{font-size:30px;}
+  .element-name-block h2{margin:0; font-size:clamp(24px,3.5vw,34px); font-weight:800;}
+  .element-name-block .en{color:var(--muted); font-size:15px; font-weight:500;}
+  .element-tags{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  .tag{font-size:11px; padding:3px 10px; border-radius:20px; background:rgba(34,211,238,.12);
+    color:var(--accent); border:1px solid rgba(34,211,238,.25); font-weight:600;}
+
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:22px 0;}
+  .stat-card{background:var(--panel); border:1px solid rgba(255,255,255,.06); border-radius:14px; padding:14px 16px;}
+  .stat-card .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px;}
+  .stat-card .value{font-size:17px; font-weight:700;}
+  .stat-card .value small{font-size:12px; color:var(--muted); font-weight:500;}
+
+  .section-block{background:var(--panel); border:1px solid rgba(255,255,255,.06); border-radius:16px;
+    padding:20px 22px; margin-bottom:14px;}
+  .section-block h3{margin:0 0 12px; font-size:15px; color:var(--accent); letter-spacing:.5px;
+    display:flex; align-items:center; gap:8px;}
+  .section-block p{margin:0 0 10px; font-size:14px; line-height:1.75; color:#cbd5e1;}
+  .section-block p:last-child{margin-bottom:0;}
+  .section-block .bullet{display:flex; gap:10px; margin-bottom:10px; font-size:14px; line-height:1.7; color:#cbd5e1;}
+  .section-block .bullet:last-child{margin-bottom:0;}
+  .section-block .bullet .dot{color:var(--accent); flex-shrink:0; font-weight:800;}
+  .section-block .mini-label{display:inline-block; font-size:11px; font-weight:700; color:var(--accent);
+    background:rgba(34,211,238,.1); border:1px solid rgba(34,211,238,.2); padding:2px 9px;
+    border-radius:6px; margin-bottom:8px; letter-spacing:.5px;}
+
+  .danger-block{background:linear-gradient(135deg,rgba(127,29,29,.35),rgba(69,10,10,.45));
+    border:1px solid rgba(239,68,68,.35); border-radius:16px; padding:20px 22px; margin-bottom:18px;}
+  .danger-block h3{margin:0 0 12px; font-size:15px; color:#fca5a5; letter-spacing:.5px;}
+  .danger-block p{margin:0; font-size:14px; line-height:1.8; color:#fecaca;}
+  .danger-block .warn-label{display:inline-block; font-size:10px; font-weight:800; letter-spacing:1px;
+    background:var(--danger); color:#fff; padding:2px 8px; border-radius:4px; margin-right:8px; vertical-align:middle;}
+
+  .again-btn{display:block; width:100%; max-width:420px; margin:26px auto 0; padding:16px;
+    font-size:17px; font-weight:800; border:none; border-radius:60px; cursor:pointer;
+    background:linear-gradient(135deg,#22d3ee,#3b82f6); color:#04121f; letter-spacing:.5px;
+    box-shadow:0 8px 30px rgba(34,211,238,.3); transition:.2s;}
+  .again-btn:hover{transform:translateY(-2px); box-shadow:0 12px 40px rgba(34,211,238,.45);}
+  .again-btn:active{transform:scale(.97);}
+
+  @media (max-width:520px){
+    .detail-scroll{padding:24px 14px 32px;}
+    .element-badge{width:62px;height:62px;}
+    .element-badge .sym{font-size:24px;}
+    .stat-grid{grid-template-columns:1fr 1fr;}
+    #spinBtn{padding:14px 40px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 語言切換 -->
+  <div id="langBar">
+    <button data-lang="zh-Hant" class="active">繁</button>
+    <button data-lang="zh-Hans">简</button>
+    <button data-lang="en">EN</button>
+  </div>
+
+  <!-- 開始頁 -->
+  <section id="startPage" class="page active">
+    <div class="title-block">
+      <h1 id="i18nTitle">元素週期輪盤</h1>
+      <p id="i18nSubtitle">118 種元素 · 轉動抽取 · 直面一克的後果</p>
+    </div>
+    <button class="start-btn" id="startBtn">開始</button>
+    <div class="start-hint" id="i18nHint">抽中後將顯示該元素的完整檔案與口服 1 克單質的後果</div>
+  </section>
+
+  <!-- 轉盤頁 -->
+  <section id="wheelPage" class="page">
+    <div id="wheelWrap" title="點擊輪盤開始轉動 / Click the wheel to spin">
+      <div id="pointer"></div>
+      <canvas id="wheelCanvas" width="900" height="900"></canvas>
+      <div id="centerHub"><span>⚛</span></div>
+    </div>
+    <button id="spinBtn">開始轉動輪盤</button>
+    <div id="wheelStatus"></div>
+  </section>
+
+  <!-- 詳情頁 -->
+  <section id="detailPage" class="page">
+    <div class="detail-scroll" id="detailContent"></div>
+  </section>
+
+</div>
+
+<script>
+/* ============================================================
+   1. 元素資料層 (118 種)
+   ============================================================ */
+const CATEGORY_COLORS = {
+  '鹼金屬':'#f97316','鹼土金屬':'#f59e0b','過渡金屬':'#38bdf8',
+  '貧金屬':'#34d399','類金屬':'#a78bfa','非金屬':'#22d3ee',
+  '鹵素':'#facc15','稀有氣體':'#c084fc','鑭系':'#fb7185','錒系':'#f472b6',
+  '超重元素':'#94a3b8'
+};
+const CAT_EN = {
+  '鹼金屬':'Alkali metal','鹼土金屬':'Alkaline earth','過渡金屬':'Transition metal',
+  '貧金屬':'Post-transition metal','類金屬':'Metalloid','非金屬':'Nonmetal',
+  '鹵素':'Halogen','稀有氣體':'Noble gas','鑭系':'Lanthanide','錒系':'Actinide','超重元素':'Superheavy'
+};
+
+const RAW = [
+[1,'H','氫','氢','Hydrogen',1.008,'非金屬','1766·卡文迪許'],
+[2,'He','氦','氦','Helium',4.0026,'稀有氣體','1868·讓森'],
+[3,'Li','鋰','锂','Lithium',6.94,'鹼金屬','1817·阿弗韋松'],
+[4,'Be','鈹','铍','Beryllium',9.0122,'鹼土金屬','1798·沃克蘭'],
+[5,'B','硼','硼','Boron',10.81,'類金屬','1808·戴維'],
+[6,'C','碳','碳','Carbon',12.011,'非金屬','古代'],
+[7,'N','氮','氮','Nitrogen',14.007,'非金屬','1772·盧瑟福'],
+[8,'O','氧','氧','Oxygen',15.999,'非金屬','1774·普利斯特里'],
+[9,'F','氟','氟','Fluorine',18.998,'鹵素','1886·莫瓦桑'],
+[10,'Ne','氖','氖','Neon',20.180,'稀有氣體','1898·拉姆齊'],
+[11,'Na','鈉','钠','Sodium',22.990,'鹼金屬','1807·戴維'],
+[12,'Mg','鎂','镁','Magnesium',24.305,'鹼土金屬','1755·布拉克'],
+[13,'Al','鋁','铝','Aluminium',26.982,'貧金屬','1825·厄斯泰德'],
+[14,'Si','矽','硅','Silicon',28.085,'類金屬','1824·貝爾塞柳斯'],
+[15,'P','磷','磷','Phosphorus',30.974,'非金屬','1669·布蘭德'],
+[16,'S','硫','硫','Sulfur',32.06,'非金屬','古代'],
+[17,'Cl','氯','氯','Chlorine',35.45,'鹵素','1774·舍勒'],
+[18,'Ar','氬','氩','Argon',39.948,'稀有氣體','1894·瑞利'],
+[19,'K','鉀','钾','Potassium',39.098,'鹼金屬','1807·戴維'],
+[20,'Ca','鈣','钙','Calcium',40.078,'鹼土金屬','1808·戴維'],
+[21,'Sc','鈧','钪','Scandium',44.956,'過渡金屬','1879·尼爾松'],
+[22,'Ti','鈦','钛','Titanium',47.867,'過渡金屬','1791·格雷戈爾'],
+[23,'V','釩','钒','Vanadium',50.942,'過渡金屬','1801·德里奧'],
+[24,'Cr','鉻','铬','Chromium',51.996,'過渡金屬','1797·沃克蘭'],
+[25,'Mn','錳','锰','Manganese',54.938,'過渡金屬','1774·甘恩'],
+[26,'Fe','鐵','铁','Iron',55.845,'過渡金屬','古代'],
+[27,'Co','鈷','钴','Cobalt',58.933,'過渡金屬','1735·布蘭特'],
+[28,'Ni','鎳','镍','Nickel',58.693,'過渡金屬','1751·克龍斯泰特'],
+[29,'Cu','銅','铜','Copper',63.546,'過渡金屬','古代'],
+[30,'Zn','鋅','锌','Zinc',65.38,'過渡金屬','古代'],
+[31,'Ga','鎵','镓','Gallium',69.723,'貧金屬','1875·布瓦博德朗'],
+[32,'Ge','鍺','锗','Germanium',72.630,'類金屬','1886·溫克勒'],
+[33,'As','砷','砷','Arsenic',74.922,'類金屬','古代'],
+[34,'Se','硒','硒','Selenium',78.971,'非金屬','1817·貝爾塞柳斯'],
+[35,'Br','溴','溴','Bromine',79.904,'鹵素','1826·巴拉爾'],
+[36,'Kr','氪','氪','Krypton',83.798,'稀有氣體','1898·拉姆齊'],
+[37,'Rb','銣','铷','Rubidium',85.468,'鹼金屬','1861·本生'],
+[38,'Sr','鍶','锶','Strontium',87.62,'鹼土金屬','1790·克勞福德'],
+[39,'Y','釔','钇','Yttrium',88.906,'過渡金屬','1794·加多林'],
+[40,'Zr','鋯','锆','Zirconium',91.224,'過渡金屬','1789·克拉普羅特'],
+[41,'Nb','鈮','铌','Niobium',92.906,'過渡金屬','1801·哈切特'],
+[42,'Mo','鉬','钼','Molybdenum',95.95,'過渡金屬','1778·舍勒'],
+[43,'Tc','鎝','锝','Technetium',[98],'過渡金屬','1937·佩里爾'],
+[44,'Ru','釕','钌','Ruthenium',101.07,'過渡金屬','1844·克勞斯'],
+[45,'Rh','銠','铑','Rhodium',102.91,'過渡金屬','1803·沃拉斯頓'],
+[46,'Pd','鈀','钯','Palladium',106.42,'過渡金屬','1803·沃拉斯頓'],
+[47,'Ag','銀','银','Silver',107.87,'過渡金屬','古代'],
+[48,'Cd','鎘','镉','Cadmium',112.41,'過渡金屬','1817·施特羅邁爾'],
+[49,'In','銦','铟','Indium',114.82,'貧金屬','1863·賴希'],
+[50,'Sn','錫','锡','Tin',118.71,'貧金屬','古代'],
+[51,'Sb','銻','锑','Antimony',121.76,'類金屬','古代'],
+[52,'Te','碲','碲','Tellurium',127.60,'類金屬','1782·米勒'],
+[53,'I','碘','碘','Iodine',126.90,'鹵素','1811·庫爾圖瓦'],
+[54,'Xe','氙','氙','Xenon',131.29,'稀有氣體','1898·拉姆齊'],
+[55,'Cs','銫','铯','Caesium',132.91,'鹼金屬','1860·本生'],
+[56,'Ba','鋇','钡','Barium',137.33,'鹼土金屬','1808·戴維'],
+[57,'La','鑭','镧','Lanthanum',138.91,'鑭系','1839·莫桑德'],
+[58,'Ce','鈰','铈','Cerium',140.12,'鑭系','1803·貝爾塞柳斯'],
+[59,'Pr','鐠','镨','Praseodymium',140.91,'鑭系','1885·威斯巴赫'],
+[60,'Nd','釹','钕','Neodymium',144.24,'鑭系','1885·威斯巴赫'],
+[61,'Pm','鉕','钷','Promethium',[145],'鑭系','1945·馬林斯基'],
+[62,'Sm','釤','钐','Samarium',150.36,'鑭系','1879·布瓦博德朗'],
+[63,'Eu','銪','铕','Europium',151.96,'鑭系','1901·德馬爾賽'],
+[64,'Gd','釓','钆','Gadolinium',157.25,'鑭系','1880·德馬爾賽'],
+[65,'Tb','鋱','铽','Terbium',158.93,'鑭系','1843·莫桑德'],
+[66,'Dy','鏑','镝','Dysprosium',162.50,'鑭系','1886·布瓦博德朗'],
+[67,'Ho','鈥','钬','Holmium',164.93,'鑭系','1878·克利夫'],
+[68,'Er','鉺','铒','Erbium',167.26,'鑭系','1843·莫桑德'],
+[69,'Tm','銩','铥','Thulium',168.93,'鑭系','1879·克利夫'],
+[70,'Yb','鐿','镱','Ytterbium',173.05,'鑭系','1878·馬里尼亞克'],
+[71,'Lu','鑥','镥','Lutetium',174.97,'鑭系','1907·于爾班'],
+[72,'Hf','鉿','铪','Hafnium',178.49,'過渡金屬','1923·科斯特'],
+[73,'Ta','鉭','钽','Tantalum',180.95,'過渡金屬','1802·厄克貝里'],
+[74,'W','鎢','钨','Tungsten',183.84,'過渡金屬','1783·埃盧亞爾'],
+[75,'Re','錸','铼','Rhenium',186.21,'過渡金屬','1925·諾達克'],
+[76,'Os','鋨','锇','Osmium',190.23,'過渡金屬','1803·坦南特'],
+[77,'Ir','銥','铱','Iridium',192.22,'過渡金屬','1803·坦南特'],
+[78,'Pt','鉑','铂','Platinum',195.08,'過渡金屬','1735·烏略亞'],
+[79,'Au','金','金','Gold',196.97,'過渡金屬','古代'],
+[80,'Hg','汞','汞','Mercury',200.59,'過渡金屬','古代'],
+[81,'Tl','鉈','铊','Thallium',204.38,'貧金屬','1861·克魯克斯'],
+[82,'Pb','鉛','铅','Lead',207.2,'貧金屬','古代'],
+[83,'Bi','鉍','铋','Bismuth',208.98,'貧金屬','古代'],
+[84,'Po','釙','钋','Polonium',[209],'類金屬','1898·居里夫人'],
+[85,'At','砈','砹','Astatine',[210],'鹵素','1940·科爾森'],
+[86,'Rn','氡','氡','Radon',[222],'稀有氣體','1900·多恩'],
+[87,'Fr','鍅','钫','Francium',[223],'鹼金屬','1939·佩雷'],
+[88,'Ra','鐳','镭','Radium',[226],'鹼土金屬','1898·居里夫人'],
+[89,'Ac','錒','锕','Actinium',[227],'錒系','1899·德比埃納'],
+[90,'Th','釷','钍','Thorium',232.04,'錒系','1829·貝爾塞柳斯'],
+[91,'Pa','鏷','镤','Protactinium',231.04,'錒系','1913·法揚斯'],
+[92,'U','鈾','铀','Uranium',238.03,'錒系','1789·克拉普羅特'],
+[93,'Np','錼','镎','Neptunium',[237],'錒系','1940·麥克米倫'],
+[94,'Pu','鈽','钚','Plutonium',[244],'錒系','1940·西博格'],
+[95,'Am','鋂','镅','Americium',[243],'錒系','1944·西博格'],
+[96,'Cm','鋦','锔','Curium',[247],'錒系','1944·西博格'],
+[97,'Bk','鉳','锫','Berkelium',[247],'錒系','1949·湯普森'],
+[98,'Cf','鉲','锎','Californium',[251],'錒系','1950·湯普森'],
+[99,'Es','鑀','锿','Einsteinium',[252],'錒系','1952·吉奧索'],
+[100,'Fm','鐨','镄','Fermium',[257],'錒系','1952·吉奧索'],
+[101,'Md','鍆','钔','Mendelevium',[258],'錒系','1955·吉奧索'],
+[102,'No','鍩','锘','Nobelium',[259],'錒系','1958·吉奧索'],
+[103,'Lr','鐒','铹','Lawrencium',[266],'錒系','1961·吉奧索'],
+[104,'Rf','鑪','𬬻','Rutherfordium',[267],'過渡金屬','1964·杜布納'],
+[105,'Db','𨧀','𬭊','Dubnium',[268],'過渡金屬','1967·杜布納'],
+[106,'Sg','𨭎','𬭳','Seaborgium',[269],'過渡金屬','1974·吉奧索'],
+[107,'Bh','𨨏','𬭛','Bohrium',[270],'過渡金屬','1981·達姆施塔特'],
+[108,'Hs','𨭆','𬭶','Hassium',[269],'過渡金屬','1984·達姆施塔特'],
+[109,'Mt','䥑','鿏','Meitnerium',[278],'超重元素','1982·達姆施塔特'],
+[110,'Ds','鐽','𫟼','Darmstadtium',[281],'超重元素','1994·達姆施塔特'],
+[111,'Rg','錀','𬬭','Roentgenium',[282],'超重元素','1994·達姆施塔特'],
+[112,'Cn','鎶','鿔','Copernicium',[285],'過渡金屬','1996·達姆施塔特'],
+[113,'Nh','鉨','鿭','Nihonium',[286],'超重元素','2004·理研'],
+[114,'Fl','鈇','𫓧','Flerovium',[289],'超重元素','1998·杜布納'],
+[115,'Mc','鏌','镆','Moscovium',[290],'超重元素','2003·杜布納'],
+[116,'Lv','鉝','𫟷','Livermorium',[293],'超重元素','2000·杜布納'],
+[117,'Ts','鿬','鿬','Tennessine',[294],'鹵素','2010·杜布納'],
+[118,'Og','鿫','鿫','Oganesson',[294],'稀有氣體','2002·杜布納']
+];
+
+const ELEMENTS = RAW.map(r => ({
+  num:r[0], sym:r[1], zhHant:r[2], zhHans:r[3], en:r[4],
+  mass:r[5], cat:r[6], discovery:r[7],
+  color: CATEGORY_COLORS[r[6]] || '#94a3b8'
+}));
+const byNum = new Map(ELEMENTS.map(e=>[e.num,e]));
+
+/* ============================================================
+   2. 多語言字典
+   ============================================================ */
+const I18N = {
+  'zh-Hant':{
+    title:'元素週期輪盤', subtitle:'118 種元素 · 轉動抽取 · 直面一克的後果',
+    hint:'抽中後將顯示該元素的完整檔案與口服 1 克單質的後果',
+    start:'開始', spin:'開始轉動輪盤', spinning:'輪盤轉動中…',
+    again:'再抽一次', resultReady:'抽中了！',
+    atomicMass:'原子量', category:'分類', discovery:'發現', number:'原子序數',
+    safetyTitle:'口服 1 克單質的後果',
+    safetyWarn:'危險',
+    physicalTitle:'物理性質',
+    chemistryTitle:'化學特性',
+    occurrenceTitle:'自然界分佈與用途',
+    factTitle:'趣味知識',
+    historyTitle:'歷史',
+    compoundsTitle:'著名化合物',
+    noCompounds:'此元素在自然界中極不穩定或含量極微，目前尚無常見的著名化合物記載。',
+    appearanceLabel:'外觀',
+    stateLabel:'常溫狀態',
+    meltingLabel:'熔沸點特性',
+    densityLabel:'密度特性',
+    distributionLabel:'分佈',
+    usesLabel:'用途',
+    safetyUnknown:'口服 1 克此元素的單質會造成嚴重化學灼傷、全身性中毒或器官衰竭，具體後果取決於該元素的化學形態與溶解度。切勿嘗試。',
+    safetyNoble:'此元素為稀有氣體，化學惰性極高。口服 1 克單質在理論上不會產生急性化學毒性，但大量氣體在胃腸道內膨脹可能造成不適與脹氣；實際操作中應避免吞食任何實驗室物質。',
+    safetyRadioactive:'此元素具有放射性。口服 1 克會造成嚴重的內照射，誘發急性輻射症候群（噁心、嘔吐、骨髓抑制、多器官衰竭），短時間內可致死。同時其化學毒性亦不容忽視。',
+    safetyAlkali:'此元素為鹼金屬，遇水劇烈反應生成強鹼與氫氣。口服 1 克會在口腔、食道與胃中引發爆炸性反應與深度鹼性灼傷，可能導致穿孔、休克與死亡。',
+    safetyHalogen:'此元素為鹵素，具強氧化性與腐蝕性。口服 1 克會造成口腔、食道與胃腸道嚴重化學灼傷，並可能引發全身性中毒。',
+    safetyHeavyMetal:'此元素為重金屬，口服 1 克可溶性鹽類即可造成急性中毒，損傷腎臟、肝臟與神經系統，嚴重時致死。',
+    safetyTemplate:'口服 1 克此元素的單質會對消化道黏膜造成直接刺激與損傷，並可能經吸收後引發全身性毒性反應。具體危害程度因元素而異，任何情況下都不可吞食。'
+  },
+  'zh-Hans':{
+    title:'元素周期轮盘', subtitle:'118 种元素 · 转动抽取 · 直面一克的后果',
+    hint:'抽中后将显示该元素的完整档案与口服 1 克单质的后果',
+    start:'开始', spin:'开始转动轮盘', spinning:'轮盘转动中…',
+    again:'再抽一次', resultReady:'抽中了！',
+    atomicMass:'原子量', category:'分类', discovery:'发现', number:'原子序数',
+    safetyTitle:'口服 1 克单质的后果',
+    safetyWarn:'危险',
+    physicalTitle:'物理性质',
+    chemistryTitle:'化学特性',
+    occurrenceTitle:'自然界分布与用途',
+    factTitle:'趣味知识',
+    historyTitle:'历史',
+    compoundsTitle:'著名化合物',
+    noCompounds:'此元素在自然界中极不稳定或含量极微，目前尚无常见的著名化合物记载。',
+    appearanceLabel:'外观',
+    stateLabel:'常温状态',
+    meltingLabel:'熔沸点特性',
+    densityLabel:'密度特性',
+    distributionLabel:'分布',
+    usesLabel:'用途',
+    safetyUnknown:'口服 1 克此元素的单质会造成严重化学灼伤、全身性中毒或器官衰竭，具体后果取决于该元素的化学形态与溶解度。切勿尝试。',
+    safetyNoble:'此元素为稀有气体，化学惰性极高。口服 1 克单质在理论上不会产生急性化学毒性，但大量气体在胃肠道内膨胀可能造成不适与胀气；实际操作中应避免吞食任何实验室物质。',
+    safetyRadioactive:'此元素具有放射性。口服 1 克会造成严重的内照射，诱发急性辐射症候群（恶心、呕吐、骨髓抑制、多器官衰竭），短时间内可致死。同时其化学毒性亦不容忽视。',
+    safetyAlkali:'此元素为碱金属，遇水剧烈反应生成强碱与氢气。口服 1 克会在口腔、食道与胃中引发爆炸性反应与深度碱性灼伤，可能导致穿孔、休克与死亡。',
+    safetyHalogen:'此元素为卤素，具强氧化性与腐蚀性。口服 1 克会造成口腔、食道与胃肠道严重化学灼伤，并可能引发全身性中毒。',
+    safetyHeavyMetal:'此元素为重金属，口服 1 克可溶性盐类即可造成急性中毒，损伤肾脏、肝脏与神经系统，严重时致死。',
+    safetyTemplate:'口服 1 克此元素的单质会对消化道黏膜造成直接刺激与损伤，并可能经吸收后引发全身性毒性反应。具体危害程度因元素而异，任何情况下都不可吞食。'
+  },
+  'en':{
+    title:'Periodic Table Wheel', subtitle:'118 elements · spin to draw · face the consequence of 1 gram',
+    hint:'After drawing, the full element dossier and the effect of ingesting 1 gram of the element will be shown',
+    start:'START', spin:'SPIN THE WHEEL', spinning:'Spinning…',
+    again:'DRAW AGAIN', resultReady:'YOU GOT',
+    atomicMass:'Atomic mass', category:'Category', discovery:'Discovered', number:'Atomic number',
+    safetyTitle:'Consequence of ingesting 1 gram of the element',
+    safetyWarn:'DANGER',
+    physicalTitle:'Physical properties',
+    chemistryTitle:'Chemical properties',
+    occurrenceTitle:'Natural occurrence & uses',
+    factTitle:'Fun facts',
+    historyTitle:'History',
+    compoundsTitle:'Notable compounds',
+    noCompounds:'This element is extremely unstable or scarce in nature; no notable compound is commonly recorded.',
+    appearanceLabel:'Appearance',
+    stateLabel:'State at 25°C',
+    meltingLabel:'Melting/boiling behaviour',
+    densityLabel:'Density',
+    distributionLabel:'Distribution',
+    usesLabel:'Uses',
+    safetyUnknown:'Ingesting 1 gram of this element would cause severe chemical burns, systemic poisoning or organ failure, depending on the chemical form and solubility. Never attempt.',
+    safetyNoble:'This is a noble gas with extremely high chemical inertness. Ingesting 1 gram of the elemental gas would not produce acute chemical toxicity in theory, but the gas expanding in the gastrointestinal tract could cause discomfort and bloating. In practice, never ingest any laboratory substance.',
+    safetyRadioactive:'This element is radioactive. Ingesting 1 gram would deliver a severe internal dose, inducing acute radiation syndrome (nausea, vomiting, bone-marrow suppression, multi-organ failure) and can be fatal within a short time. Its chemical toxicity must also be considered.',
+    safetyAlkali:'This is an alkali metal that reacts violently with water to form strong alkali and hydrogen gas. Ingesting 1 gram would trigger explosive reactions and deep alkaline burns in the mouth, esophagus and stomach, potentially causing perforation, shock and death.',
+    safetyHalogen:'This is a halogen with strong oxidizing and corrosive properties. Ingesting 1 gram would cause severe chemical burns to the mouth, esophagus and gastrointestinal tract, and may lead to systemic poisoning.',
+    safetyHeavyMetal:'This is a heavy metal. Ingesting 1 gram of its soluble salts can cause acute poisoning, damaging the kidneys, liver and nervous system, and can be fatal.',
+    safetyTemplate:'Ingesting 1 gram of this element would directly irritate and damage the gastrointestinal mucosa, and may cause systemic toxicity after absorption. The severity varies by element; under no circumstances should it be ingested.'
+  }
+};
+
+/* ============================================================
+   3. 元素專屬細節
+   ============================================================ */
+const SPECIFIC = {
+  1:{
+    occurrence:{zhHant:'宇宙中最豐富的元素，約佔普通物質質量的 75%。地球上主要以水、烴類與生物有機物形式存在，大氣中含量極微（約 0.00005%）。',zhHans:'宇宙中最丰富的元素，约占普通物质质量的 75%。地球上主要以水、烃类与生物有机物形式存在，大气中含量极微（约 0.00005%）。',en:'The most abundant element in the universe, about 75% of ordinary matter by mass. On Earth it occurs mainly as water, hydrocarbons and biological organic matter; atmospheric content is trace (about 0.00005%).'},
+    uses:{zhHant:'用於合成氨（哈伯法）、石油精煉、甲醇生產與燃料電池。液氫可作火箭燃料，氘與氚用於核反應與示蹤研究。',zhHans:'用于合成氨（哈伯法）、石油精炼、甲醇生产与燃料电池。液氢可作火箭燃料，氘与氚用于核反应与示踪研究。',en:'Used in ammonia synthesis (Haber process), petroleum refining, methanol production and fuel cells. Liquid hydrogen serves as rocket fuel; deuterium and tritium are used in nuclear reactions and tracer studies.'},
+    fact:{zhHant:'氫原子是最輕的原子，也是唯一沒有中子的元素。其同位素氘與氚在核融合研究中扮演核心角色。',zhHans:'氢原子是最轻的原子，也是唯一没有中子的元素。其同位素氘与氚在核聚变研究中扮演核心角色。',en:'The hydrogen atom is the lightest atom and the only element with no neutron. Its isotopes deuterium and tritium play a central role in fusion research.'}
+  },
+  2:{
+    occurrence:{zhHant:'宇宙中第二豐富的元素，約佔 24%。地球大氣中含量約 0.00052%，主要來自鈾與釷的放射性衰變；天然氣田中也含少量氦。',zhHans:'宇宙中第二丰富的元素，约占 24%。地球大气中含量约 0.00052%，主要来自铀与钍的放射性衰变；天然气田中也含少量氦。',en:'The second most abundant element in the universe, about 24%. Earth\'s atmosphere contains about 0.00052%, mainly from radioactive decay of uranium and thorium; natural gas fields also contain small amounts.'},
+    uses:{zhHant:'用於低溫超導磁鐵冷卻、氣球與飛艇填充、深海潛水混合氣、焊接保護氣與半導體製造。',zhHans:'用于低温超导磁铁冷却、气球与飞艇填充、深海潜水混合气、焊接保护气与半导体制造。',en:'Used for cooling superconducting magnets, filling balloons and airships, deep-sea breathing mixtures, welding shielding gas and semiconductor manufacturing.'},
+    fact:{zhHant:'氦是唯一在常壓下冷卻到絕對零度也不會凝固的元素（需加壓才能固化）。液氦的超流動性在低溫物理中極為重要。',zhHans:'氦是唯一在常压下冷却到绝对零度也不会凝固的元素（需加压才能固化）。液氦的超流动性在低温物理中极为重要。',en:'Helium is the only element that will not freeze at absolute zero under normal pressure (solidification requires pressure). The superfluidity of liquid helium is crucial in low-temperature physics.'}
+  },
+  3:{
+    occurrence:{zhHant:'不以單質存在，主要存在於鋰輝石、鋰雲母與鹽湖滷水中。海水含微量鋰，地殼中約含 0.002% 的鋰。',zhHans:'不以单质存在，主要存在于锂辉石、锂云母与盐湖卤水中。海水含微量锂，地壳中约含 0.002% 的锂。',en:'Never found free; occurs mainly in spodumene, lepidolite and salt-lake brines. Seawater contains trace lithium, and the crust holds about 0.002% lithium.'},
+    uses:{zhHant:'鋰離子電池的核心材料，也用於陶瓷、玻璃、潤滑脂與情緒穩定藥物（碳酸鋰）。',zhHans:'锂离子电池的核心材料，也用于陶瓷、玻璃、润滑脂与情绪稳定药物（碳酸锂）。',en:'The core material of lithium-ion batteries; also used in ceramics, glass, lubricating greases and mood-stabilising medication (lithium carbonate).'},
+    fact:{zhHant:'鋰是密度最小的金屬，密度僅約 0.53 g/cm³，可浮在水面上（但會劇烈反應）。',zhHans:'锂是密度最小的金属，密度仅约 0.53 g/cm³，可浮在水面上（但会剧烈反应）。',en:'Lithium is the least dense metal, about 0.53 g/cm³, and can float on water (though it reacts violently).'}
+  },
+  6:{
+    occurrence:{zhHant:'以石墨、金剛石、富勒烯與無定形碳等形式存在；也是所有有機物的骨架元素，並以碳酸鹽與二氧化碳形式大量存在。',zhHans:'以石墨、金刚石、富勒烯与无定形碳等形式存在；也是所有有机物的骨架元素，并以碳酸盐与二氧化碳形式大量存在。',en:'Occurs as graphite, diamond, fullerenes and amorphous carbon; it is the backbone of all organic matter and occurs abundantly as carbonates and carbon dioxide.'},
+    uses:{zhHant:'鋼鐵冶煉、燃料（煤、石油、天然氣）、塑膠與有機化學品、金剛石工具與石墨電極。',zhHans:'钢铁冶炼、燃料（煤、石油、天然气）、塑料与有机化学品、金刚石工具与石墨电极。',en:'Steelmaking, fuels (coal, oil, gas), plastics and organic chemicals, diamond tools and graphite electrodes.'},
+    fact:{zhHant:'碳是唯一能形成近乎無限長鏈與環狀結構的元素，這是生命化學的基礎。金剛石與石墨是同素異形體。',zhHans:'碳是唯一能形成近乎无限长链与环状结构的元素，这是生命化学的基础。金刚石与石墨是同素异形体。',en:'Carbon is the only element that can form virtually unlimited chains and rings, the basis of life chemistry. Diamond and graphite are allotropes.'}
+  },
+  7:{
+    occurrence:{zhHant:'大氣中含量約 78%（以 N₂ 形式），是地球大氣最主要的成分。也存在於硝酸鹽礦物與生物蛋白質中。',zhHans:'大气中含量约 78%（以 N₂ 形式），是地球大气最主要的成分。也存在于硝酸盐矿物与生物蛋白质中。',en:'About 78% of Earth\'s atmosphere as N₂, making it the dominant component. Also occurs in nitrate minerals and in biological proteins.'},
+    uses:{zhHant:'合成氨與氮肥、硝酸生產、惰性氣氛保護、液氮冷凍與食品包裝。',zhHans:'合成氨与氮肥、硝酸生产、惰性气氛保护、液氮冷冻与食品包装。',en:'Ammonia and fertiliser synthesis, nitric acid production, inert atmospheres, liquid-nitrogen cooling and food packaging.'},
+    fact:{zhHant:'氮氣分子中的三鍵非常穩定，因此氮氣在常溫下極不活潑；但閃電與固氮菌能將其轉化為活性氮。',zhHans:'氮气分子中的三键非常稳定，因此氮气在常温下极不活泼；但闪电与固氮菌能将其转化为活性氮。',en:'The triple bond in N₂ is extremely stable, making nitrogen gas very unreactive at room temperature; lightning and nitrogen-fixing bacteria can convert it into reactive nitrogen.'}
+  },
+  8:{
+    occurrence:{zhHant:'地殼中含量最高的元素（約 46%），主要以氧化物與矽酸鹽形式存在；大氣中約 21%（O₂），海洋中大量以水形式存在。',zhHans:'地壳中含量最高的元素（约 46%），主要以氧化物与硅酸盐形式存在；大气中约 21%（O₂），海洋中大量以水形式存在。',en:'The most abundant element in Earth\'s crust (about 46%), mainly as oxides and silicates; about 21% of the atmosphere (O₂) and abundant in the oceans as water.'},
+    uses:{zhHant:'呼吸與燃燒、鋼鐵冶煉、醫療氧氣、火箭氧化劑與廢水處理。',zhHans:'呼吸与燃烧、钢铁冶炼、医疗氧气、火箭氧化剂与废水处理。',en:'Respiration and combustion, steelmaking, medical oxygen, rocket oxidiser and wastewater treatment.'},
+    fact:{zhHant:'氧氣約佔地殼質量的 46%，是地殼中最豐富的元素。臭氧（O₃）層吸收紫外線，保護地表生命。',zhHans:'氧气约占地壳质量的 46%，是地壳中最丰富的元素。臭氧（O₃）层吸收紫外线，保护地表生命。',en:'Oxygen makes up about 46% of the crust by mass, the most abundant element there. The ozone (O₃) layer absorbs ultraviolet radiation, protecting surface life.'}
+  },
+  9:{
+    occurrence:{zhHant:'主要以螢石（CaF₂）與冰晶石形式存在，不以單質存在。地殼中含量約 0.05%，主要分佈於花崗岩與沉積岩中。',zhHans:'主要以萤石（CaF₂）与冰晶石形式存在，不以单质存在。地壳中含量约 0.05%，主要分布于花岗岩与沉积岩中。',en:'Occurs mainly as fluorite (CaF₂) and cryolite; never found free. The crust contains about 0.05%, mainly in granites and sedimentary rocks.'},
+    uses:{zhHant:'製造含氟聚合物（如鐵氟龍）、氟化物牙膏、冷媒與鈾濃縮（UF₆）。',zhHans:'制造含氟聚合物（如特氟龙）、氟化物牙膏、制冷剂与铀浓缩（UF₆）。',en:'Production of fluoropolymers (e.g. Teflon), fluoride toothpaste, refrigerants and uranium enrichment (UF₆).'},
+    fact:{zhHant:'氟是電負性最高的元素，也是最強的氧化劑之一，能與幾乎所有元素反應，甚至與水劇烈反應。',zhHans:'氟是电负性最高的元素，也是最强的氧化剂之一，能与几乎所有元素反应，甚至与水剧烈反应。',en:'Fluorine has the highest electronegativity and is one of the strongest oxidisers; it reacts with almost every element, even violently with water.'}
+  },
+  11:{
+    occurrence:{zhHant:'以氯化鈉（食鹽）等形式大量存在於海水與岩鹽礦中，不以單質存在。地殼中含量約 2.3%，是丰度第六的元素。',zhHans:'以氯化钠（食盐）等形式大量存在于海水与岩盐矿中，不以单质存在。地壳中含量约 2.3%，是丰度第六的元素。',en:'Occurs abundantly as sodium chloride (table salt) in seawater and rock-salt deposits; never found free. It makes up about 2.3% of the crust, the sixth most abundant element.'},
+    uses:{zhHant:'食鹽、純鹼與氯鹼工業、鈉燈、核反應爐冷卻劑（液態鈉）與有機合成。',zhHans:'食盐、纯碱与氯碱工业、钠灯、核反应堆冷却剂（液态钠）与有机合成。',en:'Table salt, soda-ash and chlor-alkali industries, sodium lamps, nuclear reactor coolant (liquid sodium) and organic synthesis.'},
+    fact:{zhHant:'鈉的黃色焰色反應是路燈的經典顏色。液態鈉在核反應爐中作為熱傳導介質。',zhHans:'钠的黄色焰色反应是路灯的经典颜色。液态钠在核反应堆中作为热传导介质。',en:'The yellow flame test of sodium is the classic street-lamp colour. Liquid sodium serves as a heat-transfer medium in nuclear reactors.'}
+  },
+  12:{
+    occurrence:{zhHant:'以白雲石、菱鎂礦與海水中的鎂離子形式存在，不以單質存在。地殼中含量約 2.3%，海水含大量可溶性鎂鹽。',zhHans:'以白云石、菱镁矿与海水中的镁离子形式存在，不以单质存在。地壳中含量约 2.3%，海水含大量可溶性镁盐。',en:'Occurs as dolomite, magnesite and magnesium ions in seawater; never found free. It makes up about 2.3% of the crust, and seawater contains abundant soluble magnesium salts.'},
+    uses:{zhHant:'輕合金（航空、汽車）、煙火與閃光粉、葉綠素的核心金屬、瀉鹽（硫酸鎂）與耐火材料。',zhHans:'轻合金（航空、汽车）、烟火与闪光粉、叶绿素的核心金属、泻盐（硫酸镁）与耐火材料。',en:'Light alloys (aerospace, automotive), fireworks and flares, the core metal of chlorophyll, Epsom salt (magnesium sulfate) and refractories.'},
+    fact:{zhHant:'鎂是葉綠素分子的核心金屬，沒有鎂就沒有光合作用。鎂燃燒時發出耀眼白光，早期閃光粉即用鎂。',zhHans:'镁是叶绿素分子的核心金属，没有镁就没有光合作用。镁燃烧时发出耀眼白光，早期闪光粉即用镁。',en:'Magnesium is the central metal of the chlorophyll molecule; without it there is no photosynthesis. Burning magnesium emits a brilliant white light, used in early flash powder.'}
+  },
+  13:{
+    occurrence:{zhHant:'地殼中含量最高的金屬元素（約 8%），主要以鋁土礦（Al₂O₃·nH₂O）形式存在，少數地區有剛玉等寶石礦藏。',zhHans:'地壳中含量最高的金属元素（约 8%），主要以铝土矿（Al₂O₃·nH₂O）形式存在，少数地区有刚玉等宝石矿藏。',en:'The most abundant metal in Earth\'s crust (about 8%), mainly as bauxite (Al₂O₃·nH₂O), with some gemstone deposits like corundum.'},
+    uses:{zhHant:'輕質結構材料（飛機、汽車、建築）、包裝箔、電纜與炊具；氧化鋁用於冶煉與陶瓷。',zhHans:'轻质结构材料（飞机、汽车、建筑）、包装箔、电缆与炊具；氧化铝用于冶炼与陶瓷。',en:'Lightweight structural material (aircraft, cars, construction), packaging foil, cables and cookware; alumina is used in smelting and ceramics.'},
+    fact:{zhHant:'鋁在空氣中會迅速形成緻密氧化膜而鈍化，因此耐腐蝕。19 世紀時鋁曾比黃金還貴，直到電解煉鋁法問世。',zhHans:'铝在空气中会迅速形成致密氧化膜而钝化，因此耐腐蚀。19 世纪时铝曾比黄金还贵，直到电解炼铝法问世。',en:'Aluminium passivates rapidly in air by forming a dense oxide film, making it corrosion-resistant. In the 19th century aluminium was more expensive than gold until electrolytic smelting was invented.'}
+  },
+  14:{
+    occurrence:{zhHant:'地殼中第二豐富的元素（約 28%），主要以二氧化矽（石英、砂）與矽酸鹽礦物形式存在，極少以單質游離態出現。',zhHans:'地壳中第二丰富的元素（约 28%），主要以二氧化硅（石英、砂）与硅酸盐矿物形式存在，极少以单质游离态出现。',en:'The second most abundant element in Earth\'s crust (about 28%), mainly as silica (quartz, sand) and silicate minerals; rarely found free.'},
+    uses:{zhHant:'半導體晶片、太陽能電池、玻璃與陶瓷、矽膠與合金（如矽鋼）。',zhHans:'半导体芯片、太阳能电池、玻璃与陶瓷、硅胶与合金（如硅钢）。',en:'Semiconductor chips, solar cells, glass and ceramics, silicones and alloys (e.g. silicon steel).'},
+    fact:{zhHant:'矽是現代電子工業的基石；高純度單晶矽的純度可達 99.9999999% 以上。',zhHans:'硅是现代电子工业的基石；高纯度单晶硅的纯度可达 99.9999999% 以上。',en:'Silicon is the cornerstone of the modern electronics industry; high-purity monocrystalline silicon can exceed 99.9999999% purity.'}
+  },
+  15:{
+    occurrence:{zhHant:'主要以磷酸鹽礦物（磷灰石）形式存在，是生物體（DNA、ATP、骨骼）的必需元素。自然界無游離態的磷。',zhHans:'主要以磷酸盐矿物（磷灰石）形式存在，是生物体（DNA、ATP、骨骼）的必需元素。自然界无游离态的磷。',en:'Occurs mainly as phosphate minerals (apatite); an essential element in living organisms (DNA, ATP, bones). Never found free in nature.'},
+    uses:{zhHant:'磷肥、洗滌劑、火柴、煙火與食品添加劑；白磷用於軍事煙幕。',zhHans:'磷肥、洗涤剂、火柴、烟火与食品添加剂；白磷用于军事烟幕。',en:'Phosphorus fertilisers, detergents, matches, fireworks and food additives; white phosphorus is used in military smoke screens.'},
+    fact:{zhHant:'磷是第一個由人類從尿液中分離出的元素（1669 年，布蘭德）。白磷在空氣中會自燃，需保存在水中。',zhHans:'磷是第一个由人类从尿液中分离出的元素（1669 年，布兰德）。白磷在空气中会自燃，需保存在水中。',en:'Phosphorus was the first element isolated by humans, from urine (1669, Brand). White phosphorus ignites spontaneously in air and must be stored under water.'}
+  },
+  16:{
+    occurrence:{zhHant:'以單質（火山硫）與硫化物（黃鐵礦、黃銅礦）及硫酸鹽（石膏）形式存在。地殼中丰度約 0.035%。',zhHans:'以单质（火山硫）与硫化物（黄铁矿、黄铜矿）及硫酸盐（石膏）形式存在。地壳中丰度约 0.035%。',en:'Occurs as native sulfur (volcanic), sulfides (pyrite, chalcopyrite) and sulfates (gypsum). Crustal abundance is about 0.035%.'},
+    uses:{zhHant:'硫酸生產（最重要的工業化學品之一）、橡膠硫化、農藥與火藥。',zhHans:'硫酸生产（最重要的工业化学品之一）、橡胶硫化、农药与火药。',en:'Sulfuric acid production (one of the most important industrial chemicals), rubber vulcanisation, pesticides and gunpowder.'},
+    fact:{zhHant:'硫是古代已知的元素之一，聖經中多次提及「硫磺與火」。硫酸被稱為「化學工業之母」。',zhHans:'硫是古代已知的元素之一，圣经中多次提及“硫磺与火”。硫酸被称为“化学工业之母”。',en:'Sulfur was known in antiquity and is mentioned repeatedly in the Bible ("fire and brimstone"). Sulfuric acid is called the "mother of the chemical industry".'}
+  },
+  17:{
+    occurrence:{zhHant:'以氯化鈉（食鹽）等形式大量存在於海水與岩鹽中，不以單質存在。地殼中含量約 0.013%，主要分佈於海洋。',zhHans:'以氯化钠（食盐）等形式大量存在于海水与岩盐中，不以单质存在。地壳中含量约 0.013%，主要分布于海洋。',en:'Occurs abundantly as sodium chloride (table salt) in seawater and rock salt; never found free. It makes up about 0.013% of the crust, mainly in the oceans.'},
+    uses:{zhHant:'自來水與游泳池消毒、漂白劑、PVC 塑料、鹽酸與農藥。',zhHans:'自来水与游泳池消毒、漂白剂、PVC 塑料、盐酸与农药。',en:'Disinfection of tap water and swimming pools, bleaches, PVC plastics, hydrochloric acid and pesticides.'},
+    fact:{zhHant:'氯氣在第一次世界大戰中曾被用作化學武器，促使日內瓦議定書禁止化學武器。氯是海水中含量最高的鹵素。',zhHans:'氯气在第一次世界大战中曾被用作化学武器，促使日内瓦议定书禁止化学武器。氯是海水中含量最高的卤素。',en:'Chlorine gas was used as a chemical weapon in World War I, prompting the Geneva Protocol banning chemical weapons. Chlorine is the most abundant halogen in seawater.'}
+  },
+  18:{
+    occurrence:{zhHant:'大氣中含量約 0.93%，是含量最高的稀有氣體，主要來自鉀-40 的放射性衰變。地殼中亦有微量。',zhHans:'大气中含量约 0.93%，是含量最高的稀有气体，主要来自钾-40 的放射性衰变。地壳中亦有微量。',en:'About 0.93% of the atmosphere, the most abundant noble gas, mainly from radioactive decay of potassium-40. Trace amounts also occur in the crust.'},
+    uses:{zhHant:'焊接保護氣、燈泡填充、金屬冶煉保護與食品包裝。',zhHans:'焊接保护气、灯泡填充、金属冶炼保护与食品包装。',en:'Welding shielding gas, lamp filling, metal-smelting protection and food packaging.'},
+    fact:{zhHant:'氬的英文名 argon 源自希臘語「懶惰」，因其化學惰性而得名。',zhHans:'氩的英文名 argon 源自希腊语“懒惰”，因其化学惰性而得名。',en:'The name argon comes from the Greek word for "lazy", reflecting its chemical inertness.'}
+  },
+  19:{
+    occurrence:{zhHant:'以鉀鹽（鉀石鹽、光鹵石）形式存在，是植物生長的三大必需元素之一。地殼中丰度約 2.1%。',zhHans:'以钾盐（钾石盐、光卤石）形式存在，是植物生长的三大必需元素之一。地壳中丰度约 2.1%。',en:'Occurs as potassium salts (sylvite, carnallite); one of the three essential elements for plant growth. Crustal abundance is about 2.1%.'},
+    uses:{zhHant:'鉀肥、玻璃與肥皂工業、火藥（硝酸鉀）與人體電解質補充。',zhHans:'钾肥、玻璃与肥皂工业、火药（硝酸钾）与人体电解质补充。',en:'Potassium fertilisers, glass and soap industries, gunpowder (potassium nitrate) and human electrolyte supplementation.'},
+    fact:{zhHant:'鉀是人體細胞內最主要的陽離子，對神經與肌肉功能至關重要。鉀的焰色反應呈紫色。',zhHans:'钾是人体细胞内最主要的阳离子，对神经与肌肉功能至关重要。钾的焰色反应呈紫色。',en:'Potassium is the main intracellular cation in the human body, essential for nerve and muscle function. Its flame test is violet.'}
+  },
+  20:{
+    occurrence:{zhHant:'以石灰石（CaCO₃）、石膏（CaSO₄·2H₂O）與螢石等形式大量存在，是骨骼與牙齒的主要成分。地殼中丰度約 4.1%。',zhHans:'以石灰石（CaCO₃）、石膏（CaSO₄·2H₂O）与萤石等形式大量存在，是骨骼与牙齿的主要成分。地壳中丰度约 4.1%。',en:'Occurs abundantly as limestone (CaCO₃), gypsum (CaSO₄·2H₂O) and fluorite; the main component of bones and teeth. Crustal abundance is about 4.1%.'},
+    uses:{zhHant:'水泥與石灰、鋼鐵冶煉助熔劑、鈣片與骨骼健康、農業土壤改良。',zhHans:'水泥与石灰、钢铁冶炼助熔剂、钙片与骨骼健康、农业土壤改良。',en:'Cement and lime, steelmaking flux, calcium supplements and bone health, agricultural soil improvement.'},
+    fact:{zhHant:'鈣是人體含量最高的金屬元素，約 99% 存在於骨骼與牙齒中。石灰石與大理石的主要成分都是碳酸鈣。',zhHans:'钙是人体含量最高的金属元素，约 99% 存在于骨骼与牙齿中。石灰石与大理石的主要成分都是碳酸钙。',en:'Calcium is the most abundant metal in the human body, about 99% in bones and teeth. Limestone and marble are both mainly calcium carbonate.'}
+  },
+  26:{
+    occurrence:{zhHant:'地殼中含量第四的元素，主要以赤鐵礦（Fe₂O₃）、磁鐵礦（Fe₃O₄）與黃鐵礦形式存在。地球核心主要由鐵鎳合金組成。',zhHans:'地壳中含量第四的元素，主要以赤铁矿（Fe₂O₃）、磁铁矿（Fe₃O₄）与黄铁矿形式存在。地球核心主要由铁镍合金组成。',en:'The fourth most abundant element in Earth\'s crust, mainly as haematite (Fe₂O₃), magnetite (Fe₃O₄) and pyrite. Earth\'s core is mainly an iron-nickel alloy.'},
+    uses:{zhHant:'鋼鐵（建築、機械、交通）、磁性材料、催化劑與血紅素的核心金屬。',zhHans:'钢铁（建筑、机械、交通）、磁性材料、催化剂与血红素的核心金属。',en:'Steel and iron (construction, machinery, transport), magnetic materials, catalysts and the core metal of haemoglobin.'},
+    fact:{zhHant:'鐵是地球核心的主要成分，也是血紅素的核心金屬，負責運輸氧氣。鐵的冶煉開啟了人類的鐵器時代。',zhHans:'铁是地球核心的主要成分，也是血红素的核心金属，负责运输氧气。铁的冶炼开启了人类的铁器时代。',en:'Iron is the main component of Earth\'s core and the central metal of haemoglobin, responsible for oxygen transport. Iron smelting opened the Iron Age.'}
+  },
+  29:{
+    occurrence:{zhHant:'以單質（自然銅）與硫化物（黃銅礦）形式存在，不以高純度大量存在。地殼中丰度約 0.006%。',zhHans:'以单质（自然铜）与硫化物（黄铜矿）形式存在，不以高纯度大量存在。地壳中丰度约 0.006%。',en:'Occurs as native copper and sulfides (chalcopyrite); not abundant in high purity. Crustal abundance is about 0.006%.'},
+    uses:{zhHant:'電線與電纜（導電性僅次於銀）、管道、合金（黃銅、青銅）與殺菌材料。',zhHans:'电线与电缆（导电性仅次于银）、管道、合金（黄铜、青铜）与杀菌材料。',en:'Wires and cables (conductivity second only to silver), plumbing, alloys (brass, bronze) and antimicrobial materials.'},
+    fact:{zhHant:'銅是人類最早使用的金屬之一，青銅器時代即以此命名。銅表面形成的銅綠具有保護作用。',zhHans:'铜是人类最早使用的金属之一，青铜器时代即以此命名。铜表面形成的铜绿具有保护作用。',en:'Copper is one of the earliest metals used by humans, giving its name to the Bronze Age. The green patina that forms on copper is protective.'}
+  },
+  30:{
+    occurrence:{zhHant:'主要以閃鋅礦（ZnS）與菱鋅礦（ZnCO₃）形式存在，不以單質存在。地殼中丰度約 0.007%。',zhHans:'主要以闪锌矿（ZnS）与菱锌矿（ZnCO₃）形式存在，不以单质存在。地壳中丰度约 0.007%。',en:'Occurs mainly as sphalerite (ZnS) and smithsonite (ZnCO₃); never found free. Crustal abundance is about 0.007%.'},
+    uses:{zhHant:'鍍鋅防腐、電池（鋅錳電池）、黃銅合金、氧化鋅防曬與皮膚藥膏。',zhHans:'镀锌防腐、电池（锌锰电池）、黄铜合金、氧化锌防晒与皮肤药膏。',en:'Galvanising for corrosion protection, batteries (zinc-carbon), brass alloys, zinc oxide sunscreen and skin ointments.'},
+    fact:{zhHant:'鋅是人體多種酵素的必需微量元素，缺乏會影響免疫與生長。鍍鋅鋼板是建築與汽車的常用材料。',zhHans:'锌是人体多种酵素的必需微量元素，缺乏会影响免疫与生长。镀锌钢板是建筑与汽车的常用材料。',en:'Zinc is an essential trace element for many human enzymes; deficiency affects immunity and growth. Galvanised steel is common in construction and cars.'}
+  },
+  47:{
+    occurrence:{zhHant:'以單質（自然銀）與硫化物（輝銀礦）形式存在，含量稀少。地殼中丰度約 0.000007%。',zhHans:'以单质（自然银）与硫化物（辉银矿）形式存在，含量稀少。地壳中丰度约 0.000007%。',en:'Occurs as native silver and sulfides (argentite); relatively rare. Crustal abundance is about 0.000007%.'},
+    uses:{zhHant:'首飾與銀器、導電漿料（電子）、攝影感光材料、抗菌材料與催化劑。',zhHans:'首饰与银器、导电浆料（电子）、摄影感光材料、抗菌材料与催化剂。',en:'Jewellery and silverware, conductive pastes (electronics), photographic materials, antimicrobial materials and catalysts.'},
+    fact:{zhHant:'銀是導電性與導熱性最好的金屬，但因價格較高而多用於電子與首飾。硝酸銀是經典的檢驗氯離子試劑。',zhHans:'银是导电性与导热性最好的金属，但因价格较高而多用于电子与首饰。硝酸银是经典的检验氯离子试剂。',en:'Silver has the highest electrical and thermal conductivity of all metals but is mostly used in electronics and jewellery due to cost. Silver nitrate is the classic chloride test reagent.'}
+  },
+  53:{
+    occurrence:{zhHant:'主要以碘化物形式存在於海水、海藻與智利硝石中，不以單質存在。人體甲狀腺中富含碘。',zhHans:'主要以碘化物形式存在于海水、海藻与智利硝石中，不以单质存在。人体甲状腺中富含碘。',en:'Occurs mainly as iodides in seawater, seaweed and Chilean saltpetre; never found free. The human thyroid is rich in iodine.'},
+    uses:{zhHant:'碘酒與消毒劑、食鹽加碘（預防甲狀腺腫）、造影劑與攝影材料。',zhHans:'碘酒与消毒剂、食盐加碘（预防甲状腺肿）、造影剂与摄影材料。',en:'Iodine tincture and disinfectants, iodised salt (preventing goitre), contrast agents and photographic materials.'},
+    fact:{zhHant:'碘是人體甲狀腺激素的必需元素，缺乏會導致甲狀腺腫大。碘在常溫下會緩慢昇華為紫色蒸氣。',zhHans:'碘是人体甲状腺激素的必需元素，缺乏会导致甲状腺肿大。碘在常温下会缓慢升华为紫色蒸气。',en:'Iodine is essential for human thyroid hormones; deficiency causes goitre. It slowly sublimes to purple vapour at room temperature.'}
+  },
+  79:{
+    occurrence:{zhHant:'以單質（自然金）與少量硫化物形式存在，含量極低但可富集成礦。地殼中丰度極低，約 0.0000004%。',zhHans:'以单质（自然金）与少量硫化物形式存在，含量极低但可富集成矿。地壳中丰度极低，约 0.0000004%。',en:'Occurs as native gold and minor sulfides; very low abundance but can be concentrated in deposits. Crustal abundance is extremely low, about 0.0000004%.'},
+    uses:{zhHant:'首飾與投資、電子接點與導線、牙科材料與航天鍍層。',zhHans:'首饰与投资、电子接点与导线、牙科材料与航天镀层。',en:'Jewellery and investment, electronic contacts and wires, dental materials and aerospace coatings.'},
+    fact:{zhHant:'金是化學性質最穩定的金屬之一，自古以來被視為財富象徵。金的延展性極佳，1 克可拉成數公里長的細絲。',zhHans:'金是化学性质最稳定的金属之一，自古以来被视为财富象征。金的延展性极佳，1 克可拉成数公里长的细丝。',en:'Gold is one of the most chemically inert metals and has been a symbol of wealth since antiquity. It is extremely malleable; 1 gram can be drawn into a wire several kilometres long.'}
+  },
+  80:{
+    occurrence:{zhHant:'主要以辰砂（HgS）形式存在，可通過加熱還原得到單質汞。地殼中丰度約 0.000008%。',zhHans:'主要以辰砂（HgS）形式存在，可通过加热还原得到单质汞。地壳中丰度约 0.000008%。',en:'Occurs mainly as cinnabar (HgS), from which elemental mercury can be obtained by heating and reduction. Crustal abundance is about 0.000008%.'},
+    uses:{zhHant:'溫度計與氣壓計（逐漸淘汰）、螢光燈、氯鹼工業電極與金礦提取（汞齊法）。',zhHans:'温度计与气压计（逐渐淘汰）、荧光灯、氯碱工业电极与金矿提取（汞齐法）。',en:'Thermometers and barometers (being phased out), fluorescent lamps, chlor-alkali electrodes and gold extraction (amalgamation).'},
+    fact:{zhHant:'汞是常溫下唯一的液態金屬，古代煉丹術士對其十分著迷。汞蒸氣與其化合物具強烈神經毒性。',zhHans:'汞是常温下唯一的液态金属，古代炼丹术士对其十分着迷。汞蒸气与其化合物具强烈神经毒性。',en:'Mercury is the only liquid metal at room temperature; ancient alchemists were fascinated by it. Mercury vapour and its compounds are strongly neurotoxic.'}
+  },
+  82:{
+    occurrence:{zhHant:'主要以方鉛礦（PbS）形式存在，常與鋅、銀礦共生。地殼中丰度約 0.0014%。',zhHans:'主要以方铅矿（PbS）形式存在，常与锌、银矿共生。地壳中丰度约 0.0014%。',en:'Occurs mainly as galena (PbS), often together with zinc and silver ores. Crustal abundance is about 0.0014%.'},
+    uses:{zhHant:'鉛酸蓄電池（汽車啟動電池）、防輻射屏蔽、焊料與彈藥（逐漸限制）。',zhHans:'铅酸蓄电池（汽车启动电池）、防辐射屏蔽、焊料与弹药（逐渐限制）。',en:'Lead-acid batteries (car starter batteries), radiation shielding, solders and ammunition (increasingly restricted).'},
+    fact:{zhHant:'鉛的密度大、柔軟易加工，古羅馬人曾用鉛管輸水（英文 plumbing 即源自拉丁文鉛 plumbum）。鉛具累積性神經毒性。',zhHans:'铅的密度大、柔软易加工，古罗马人曾用铅管输水（英文 plumbing 即源自拉丁文铅 plumbum）。铅具累积性神经毒性。',en:'Lead is dense, soft and easily worked; the Romans used lead pipes for water (the word plumbing comes from Latin plumbum, lead). Lead is a cumulative neurotoxin.'}
+  },
+  92:{
+    occurrence:{zhHant:'主要以瀝青鈾礦（U₃O₈）等形式存在於地殼中，是核燃料的來源。地殼丰度約 0.00027%，海水亦含微量鈾。',zhHans:'主要以沥青铀矿（U₃O₈）等形式存在于地壳中，是核燃料的来源。地壳丰度约 0.00027%，海水亦含微量铀。',en:'Occurs mainly as pitchblende (U₃O₈) in Earth\'s crust; the source of nuclear fuel. Crustal abundance is about 0.00027%, and seawater contains trace uranium.'},
+    uses:{zhHant:'核電廠燃料（濃縮鈾）、核武器、貧鈾裝甲與放射性示蹤。',zhHans:'核电厂燃料（浓缩铀）、核武器、贫铀装甲与放射性示踪。',en:'Nuclear power plant fuel (enriched uranium), nuclear weapons, depleted-uranium armour and radioactive tracers.'},
+    fact:{zhHant:'鈾是自然界中最重的天然元素，其同位素鈾-235 能維持核分裂鏈反應。天然鈾中鈾-235 僅約 0.72%。',zhHans:'铀是自然界中最重的天然元素，其同位素铀-235 能维持核裂变链反应。天然铀中铀-235 仅约 0.72%。',en:'Uranium is the heaviest naturally occurring element; its isotope U-235 can sustain a nuclear fission chain reaction. Natural uranium contains only about 0.72% U-235.'}
+  }
+};
+
+/* ============================================================
+   4. 化合物資料
+   ============================================================ */
+const COMPOUNDS = {
+  1:{'zh-Hant':'水（H₂O）、過氧化氫（H₂O₂）','zh-Hans':'水（H₂O）、过氧化氢（H₂O₂）','en':'Water (H₂O), hydrogen peroxide (H₂O₂)'},
+  6:{'zh-Hant':'二氧化碳（CO₂）、甲烷（CH₄）、碳酸鈣（CaCO₃）','zh-Hans':'二氧化碳（CO₂）、甲烷（CH₄）、碳酸钙（CaCO₃）','en':'Carbon dioxide (CO₂), methane (CH₄), calcium carbonate (CaCO₃)'},
+  7:{'zh-Hant':'氨（NH₃）、硝酸（HNO₃）、氮氣（N₂）','zh-Hans':'氨（NH₃）、硝酸（HNO₃）、氮气（N₂）','en':'Ammonia (NH₃), nitric acid (HNO₃), nitrogen gas (N₂)'},
+  8:{'zh-Hant':'水（H₂O）、氧氣（O₂）、臭氧（O₃）','zh-Hans':'水（H₂O）、氧气（O₂）、臭氧（O₃）','en':'Water (H₂O), oxygen gas (O₂), ozone (O₃)'},
+  11:{'zh-Hant':'氯化鈉（NaCl，食鹽）、碳酸氫鈉（NaHCO₃，小蘇打）','zh-Hans':'氯化钠（NaCl，食盐）、碳酸氢钠（NaHCO₃，小苏打）','en':'Sodium chloride (NaCl, table salt), sodium bicarbonate (NaHCO₃, baking soda)'},
+  12:{'zh-Hant':'氧化鎂（MgO）、硫酸鎂（MgSO₄，瀉鹽）','zh-Hans':'氧化镁（MgO）、硫酸镁（MgSO₄，泻盐）','en':'Magnesium oxide (MgO), magnesium sulfate (MgSO₄, Epsom salt)'},
+  13:{'zh-Hant':'氧化鋁（Al₂O₃）、氫氧化鋁（Al(OH)₃）','zh-Hans':'氧化铝（Al₂O₃）、氢氧化铝（Al(OH)₃）','en':'Aluminium oxide (Al₂O₃), aluminium hydroxide (Al(OH)₃)'},
+  14:{'zh-Hant':'二氧化矽（SiO₂，石英/砂）、碳化矽（SiC）','zh-Hans':'二氧化硅（SiO₂，石英/砂）、碳化硅（SiC）','en':'Silicon dioxide (SiO₂, quartz/sand), silicon carbide (SiC)'},
+  15:{'zh-Hant':'磷酸（H₃PO₄）、五氧化二磷（P₂O₅）','zh-Hans':'磷酸（H₃PO₄）、五氧化二磷（P₂O₅）','en':'Phosphoric acid (H₃PO₄), phosphorus pentoxide (P₂O₅)'},
+  16:{'zh-Hant':'硫酸（H₂SO₄）、二氧化硫（SO₂）、硫化氫（H₂S）','zh-Hans':'硫酸（H₂SO₄）、二氧化硫（SO₂）、硫化氢（H₂S）','en':'Sulfuric acid (H₂SO₄), sulfur dioxide (SO₂), hydrogen sulfide (H₂S)'},
+  17:{'zh-Hant':'氯化鈉（NaCl）、鹽酸（HCl）、次氯酸鈉（NaClO，漂白水）','zh-Hans':'氯化钠（NaCl）、盐酸（HCl）、次氯酸钠（NaClO，漂白水）','en':'Sodium chloride (NaCl), hydrochloric acid (HCl), sodium hypochlorite (NaClO, bleach)'},
+  19:{'zh-Hant':'氯化鉀（KCl）、硝酸鉀（KNO₃，硝石）','zh-Hans':'氯化钾（KCl）、硝酸钾（KNO₃，硝石）','en':'Potassium chloride (KCl), potassium nitrate (KNO₃, saltpetre)'},
+  20:{'zh-Hant':'碳酸鈣（CaCO₃，石灰石/大理石）、氧化鈣（CaO，生石灰）','zh-Hans':'碳酸钙（CaCO₃，石灰石/大理石）、氧化钙（CaO，生石灰）','en':'Calcium carbonate (CaCO₃, limestone/marble), calcium oxide (CaO, quicklime)'},
+  26:{'zh-Hant':'氧化鐵（Fe₂O₃，鐵鏽）、四氧化三鐵（Fe₃O₄）、硫酸亞鐵（FeSO₄）','zh-Hans':'氧化铁（Fe₂O₃，铁锈）、四氧化三铁（Fe₃O₄）、硫酸亚铁（FeSO₄）','en':'Iron(III) oxide (Fe₂O₃, rust), iron(II,III) oxide (Fe₃O₄), iron(II) sulfate (FeSO₄)'},
+  29:{'zh-Hant':'硫酸銅（CuSO₄）、氧化銅（CuO）','zh-Hans':'硫酸铜（CuSO₄）、氧化铜（CuO）','en':'Copper(II) sulfate (CuSO₄), copper(II) oxide (CuO)'},
+  30:{'zh-Hant':'氧化鋅（ZnO）、硫酸鋅（ZnSO₄）','zh-Hans':'氧化锌（ZnO）、硫酸锌（ZnSO₄）','en':'Zinc oxide (ZnO), zinc sulfate (ZnSO₄)'},
+  47:{'zh-Hant':'硝酸銀（AgNO₃）、氯化銀（AgCl，沉澱）','zh-Hans':'硝酸银（AgNO₃）、氯化银（AgCl，沉淀）','en':'Silver nitrate (AgNO₃), silver chloride (AgCl, precipitate)'},
+  53:{'zh-Hant':'碘化鉀（KI）、碘酸鉀（KIO₃）','zh-Hans':'碘化钾（KI）、碘酸钾（KIO₃）','en':'Potassium iodide (KI), potassium iodate (KIO₃)'},
+  74:{'zh-Hant':'碳化鎢（WC，硬質合金）','zh-Hans':'碳化钨（WC，硬质合金）','en':'Tungsten carbide (WC, hard alloy)'},
+  79:{'zh-Hant':'氯化金（AuCl₃）、氰化金鉀（KAu(CN)₂）','zh-Hans':'氯化金（AuCl₃）、氰化金钾（KAu(CN)₂）','en':'Gold(III) chloride (AuCl₃), potassium dicyanoaurate(I) (KAu(CN)₂)'},
+  80:{'zh-Hant':'氯化汞（HgCl₂，升汞，劇毒）、硫化汞（HgS，硃砂）','zh-Hans':'氯化汞（HgCl₂，升汞，剧毒）、硫化汞（HgS，朱砂）','en':'Mercury(II) chloride (HgCl₂, corrosive sublimate, highly toxic), mercury(II) sulfide (HgS, cinnabar)'},
+  82:{'zh-Hant':'氧化鉛（PbO，密陀僧）、四氧化三鉛（Pb₃O₄，鉛丹）','zh-Hans':'氧化铅（PbO，密陀僧）、四氧化三铅（Pb₃O₄，铅丹）','en':'Lead(II) oxide (PbO, litharge), lead(II,IV) oxide (Pb₃O₄, red lead)'},
+  92:{'zh-Hant':'二氧化鈾（UO₂，核燃料）、六氟化鈾（UF₆）','zh-Hans':'二氧化铀（UO₂，核燃料）、六氟化铀（UF₆）','en':'Uranium dioxide (UO₂, nuclear fuel), uranium hexafluoride (UF₆)'}
+};
+
+/* ============================================================
+   5. 樣板生成：物理性質 / 化學特性 / 分佈 / 用途 / 趣味知識
+   ============================================================ */
+const GAS_SYMS = ['H','He','N','O','F','Ne','Cl','Ar','Kr','Xe','Rn'];
+const LIQUID_SYMS = ['Hg','Br'];
+
+function stateOf(el){
+  if(GAS_SYMS.includes(el.sym)) return 'gas';
+  if(LIQUID_SYMS.includes(el.sym)) return 'liquid';
+  return 'solid';
+}
+
+function getAppearance(el, langKey){
+  const sym = el.sym, c = el.cat;
+  const special = {
+    Au:['金黃色、有光澤的貴金屬晶體，具有極佳的延展性與導電性','金黄色、有光泽的贵金属晶体，具有极佳的延展性与导电性','a yellow, lustrous noble-metal crystal with excellent malleability and conductivity'],
+    Cu:['紅棕色、有光澤的金屬，表面氧化後會形成綠色的銅綠保護層','红棕色、有光泽的金属，表面氧化后会形成绿色的铜绿保护层','a reddish-brown, lustrous metal; its surface forms a green patina when oxidised'],
+    Hg:['銀白色液態金屬，常溫下為液體，是唯一在常溫下呈液態的金属元素','银白色液态金属，常温下为液体，是唯一在常温下呈液态的金属元素','a silvery liquid metal; the only metal that is liquid at room temperature'],
+    Br:['紅棕色發煙液體，具有強烈刺激性氣味，常溫下易揮發','红棕色发烟液体，具有强烈刺激性气味，常温下易挥发','a reddish-brown fuming liquid with a pungent odour that volatilises readily at room temperature'],
+    I:['紫黑色有光澤的固體，易昇華為紫色蒸氣，帶有特異氣味','紫黑色有光泽的固体，易升华为紫色蒸气，带有特异气味','a lustrous purple-black solid that readily sublimes to purple vapour with a distinctive odour'],
+    Cl:['黃綠色氣體，具有強烈刺激性氣味，密度比空氣大','黄绿色气体，具有强烈刺激性气味，密度比空气大','a yellow-green gas with a pungent odour and density greater than air'],
+    F:['淡黃色氣體，具有極強腐蝕性與刺激性氣味','淡黄色气体，具有极强腐蚀性与刺激性气味','a pale yellow gas with extremely high corrosiveness and a pungent odour'],
+    S:['黃色脆性固體，不溶於水，有多種同素異形體','黄色脆性固体，不溶于水，有多种同素异形体','a yellow, brittle solid insoluble in water with several allotropes'],
+    P:['白磷為白色蠟狀固體，紅磷為暗紅色粉末，黑磷為黑色片狀晶體','白磷为白色蜡状固体，红磷为暗红色粉末，黑磷为黑色片状晶体','white phosphorus is a waxy white solid; red phosphorus is a dark red powder; black phosphorus is a black flaky crystal'],
+    C:['金剛石為無色透明晶體，石墨為黑色片狀，富勒烯為黑色分子晶體','金刚石为无色透明晶体，石墨为黑色片状，富勒烯为黑色分子晶体','diamond is a colourless transparent crystal, graphite is black and flaky, fullerenes are black molecular crystals'],
+    B:['黑色或棕色粉末，晶態硼為黑色有光澤晶體，硬度極高','黑色或棕色粉末，晶态硼为黑色有光泽晶体，硬度极高','a black or brown powder; crystalline boron is a lustrous black solid with very high hardness'],
+    Si:['灰黑色有金屬光澤的半導體晶體，質脆，是半導體工業的核心材料','灰黑色有金属光泽的半导体晶体，质脆，是半导体工业的核心材料','a grey-black semiconducting crystal with metallic lustre, brittle and central to the semiconductor industry'],
+    As:['灰砷為銀灰色脆性晶體，黃砷為黃色蠟狀固體，具有毒性','灰砷为银灰色脆性晶体，黄砷为黄色蜡状固体，具有毒性','grey arsenic is a brittle silver-grey crystal; yellow arsenic is a waxy yellow solid; both are toxic']
+  };
+  if(special[sym]) return special[sym][langKey];
+  if(GAS_SYMS.includes(sym)) return {zhHant:'無色、無味的氣體，在空氣中難以察覺，需特殊儀器檢測。',zhHans:'无色、无味的气体，在空气中难以察觉，需特殊仪器检测。',en:'a colourless, odourless gas, imperceptible in air and requiring special instruments for detection.'}[langKey];
+  
+  const map = {
+    '鹼金屬':{zhHant:'銀白色、質地極軟、有金屬光澤的固體，可用小刀輕易切割。',zhHans:'银白色、质地极软、有金属光泽的固体，可用小刀轻易切割。',en:'a silvery-white, extremely soft, lustrous solid that can be easily cut with a knife.'},
+    '鹼土金屬':{zhHant:'銀白色、較硬、有金屬光澤的固體，具有一定的延展性。',zhHans:'银白色、较硬、有金属光泽的固体，具有一定的延展性。',en:'a silvery-white, harder, lustrous solid with some malleability.'},
+    '過渡金屬':{zhHant:'多為銀白或灰白色、有金屬光澤、堅硬且具備良好導電導熱性的固體。',zhHans:'多为银白或灰白色、有金属光泽、坚硬且具备良好导电导热性的固体。',en:'mostly silvery-white or greyish, lustrous, hard solids with good electrical and thermal conductivity.'},
+    '鑭系':{zhHant:'銀白色、質地較軟的金屬固體，表面易氧化而失去光澤。',zhHans:'银白色、质地较软的金属固体，表面易氧化而失去光泽。',en:'a silvery-white, relatively soft metal solid whose surface easily oxidises and loses its lustre.'},
+    '錒系':{zhHant:'銀白色、具放射性的金屬固體，在暗處可能發出微弱光芒。',zhHans:'银白色、具放射性的金属固体，在暗处可能发出微弱光芒。',en:'a silvery-white, radioactive metal solid that may emit a faint glow in the dark.'},
+    '鹵素':{zhHant:'具有特異顏色與強烈刺激性氣味的非金屬，狀態涵蓋氣、液、固三態。',zhHans:'具有特异颜色与强烈刺激性气味的非金属，状态涵盖气、液、固三态。',en:'a nonmetal with a distinctive colour and pungent odour, existing as gas, liquid or solid.'},
+    '類金屬':{zhHant:'脆性、外觀介於金屬與非金屬之間，常呈現半導體特性的固體。',zhHans:'脆性、外观介于金属与非金属之间，常呈现半导体特性的固体。',en:'a brittle solid with an appearance intermediate between metals and nonmetals, often semiconducting.'},
+    '非金屬':{zhHant:'外觀多樣的非金屬元素，可能為氣態、液態或固態，通常導電性較差。',zhHans:'外观多样的非金属元素，可能为气态、液态或固态，通常导电性较差。',en:'a nonmetal with variable appearance (gas, liquid or solid), typically a poor conductor.'},
+    '稀有氣體':{zhHant:'無色、無味、無臭的氣體，在放電管中會發出特有色光。',zhHans:'无色、无味、无臭的气体，在放电管中会发出特有色光。',en:'a colourless, odourless and tasteless gas that emits characteristic light in a discharge tube.'},
+    '貧金屬':{zhHant:'銀白色、質地較軟、有金屬光澤的固體，熔點通常比過渡金屬低。',zhHans:'银白色、质地较软、有金属光泽的固体，熔点通常比过渡金属低。',en:'a silvery-white, relatively soft, lustrous solid with a lower melting point than transition metals.'},
+    '超重元素':{zhHant:'人工合成、外觀未知（理論預測為銀白色或灰白色固體）。',zhHans:'人工合成、外观未知（理论预测为银白色或灰白色固体）。',en:'synthetic; appearance unknown (predicted to be a silvery-white or greyish solid).'}
+  };
+  return (map[c]||map['過渡金屬'])[langKey];
+}
+
+function getMeltingBoilingHint(el, langKey){
+  if(GAS_SYMS.includes(el.sym)) return {zhHant:'熔點與沸點極低，在常溫常壓下完全以氣態形式存在，極難液化。',zhHans:'熔点与沸点极低，在常温常压下完全以气态形式存在，极难液化。',en:'extremely low melting and boiling points; exists entirely as a gas at standard conditions and is very hard to liquefy.'}[langKey];
+  if(LIQUID_SYMS.includes(el.sym)) return {zhHant:'熔點低於室溫而沸點較高，因此在常溫下呈液態，具有明顯的揮發性。',zhHans:'熔点低于室温而沸点较高，因此在常温下呈液态，具有明显的挥发性。',en:'melting point below room temperature and boiling point well above it; liquid at room temperature with noticeable volatility.'}[langKey];
+  if(el.cat==='鹼金屬') return {zhHant:'熔點與沸點偏低，質地柔軟易熔，銫甚至在人體體溫下就能熔化。',zhHans:'熔点与沸点偏低，质地柔软易熔，铯甚至在人体体温下就能熔化。',en:'relatively low melting and boiling points; soft and easily melted (caesium melts at body temperature).'}[langKey];
+  if(el.cat==='過渡金屬') return {zhHant:'熔點與沸點通常很高（鎢的熔點約 3422°C，為所有金屬之最），耐高溫性能優異。',zhHans:'熔点与沸点通常很高（钨的熔点约 3422°C，为所有金属之最），耐高温性能优异。',en:'typically very high melting and boiling points (tungsten melts at about 3422°C, the highest of all metals), with excellent heat resistance.'}[langKey];
+  if(el.cat==='稀有氣體') return {zhHant:'熔點與沸點極低，極易揮發，需在極低溫下才能液化或固化。',zhHans:'熔点与沸点极低，极易挥发，需在极低温下才能液化或固化。',en:'extremely low melting and boiling points; highly volatile, requiring very low temperatures to liquefy or solidify.'}[langKey];
+  if(el.cat==='超重元素') return {zhHant:'數據不足，理論預測其熔沸點較高，但半衰期極短，難以進行物理測量。',zhHans:'数据不足，理论预测其熔沸点较高，但半衰期极短，难以进行物理测量。',en:'data insufficient; theory predicts relatively high melting/boiling points, but extremely short half-lives make physical measurement difficult.'}[langKey];
+  return {zhHant:'熔點與沸點中等偏高，具有一定的熱穩定性與揮發性。',zhHans:'熔点与沸点中等偏高，具有一定的热稳定性与挥发性。',en:'moderately high melting and boiling points with some thermal stability and volatility.'}[langKey];
+}
+
+function getDensityHint(el, langKey){
+  const sym = el.sym;
+  if(sym==='Li') return {zhHant:'密度約 0.53 g/cm³，是已知最輕的金屬，甚至可以浮在水面上。',zhHans:'密度约 0.53 g/cm³，是已知最轻的金属，甚至可以浮在水面上。',en:'about 0.53 g/cm³, the lightest known metal; it can even float on water.'}[langKey];
+  if(sym==='Os') return {zhHant:'密度約 22.6 g/cm³，是已知密度最大的天然元素之一，質地堅硬沉重。',zhHans:'密度约 22.6 g/cm³，是已知密度最大的天然元素之一，质地坚硬沉重。',en:'about 22.6 g/cm³, one of the densest naturally occurring elements; hard and heavy.'}[langKey];
+  if(sym==='Ir') return {zhHant:'密度約 22.6 g/cm³，與鋨同為已知密度最大的元素，極其堅硬。',zhHans:'密度约 22.6 g/cm³，与锇同为已知密度最大的元素，极其坚硬。',en:'about 22.6 g/cm³, among the densest known elements along with osmium; extremely hard.'}[langKey];
+  if(GAS_SYMS.includes(sym)) return {zhHant:'氣態密度極低，遠小於空氣或略大於空氣，依具體元素而異。',zhHans:'气态密度极低，远小于空气或略大于空气，依具体元素而异。',en:'very low density in the gaseous state, either much less than or slightly greater than air depending on the element.'}[langKey];
+  if(el.cat==='鹼金屬') return {zhHant:'密度很低，是典型的輕金屬，鋰、鈉、鉀的密度均小於水的密度。',zhHans:'密度很低，是典型的轻金属，锂、钠、钾的密度均小于水的密度。',en:'very low density, typical light metals; lithium, sodium and potassium all have densities less than water.'}[langKey];
+  if(el.cat==='過渡金屬') return {zhHant:'密度較高，多數屬於重金屬，具有沉甸甸的手感與良好的機械強度。',zhHans:'密度较高，多数属于重金属，具有沉甸甸的手感与良好的机械强度。',en:'relatively high density; mostly heavy metals with a substantial feel and good mechanical strength.'}[langKey];
+  return {zhHant:'密度中等，因元素不同而有所差異，通常介於輕金屬與重金屬之間。',zhHans:'密度中等，因元素不同而有所差异，通常介于轻金属与重金属之间。',en:'moderate density, varying by element, typically between light and heavy metals.'}[langKey];
+}
+
+function getChemistry(el, langKey){
+  const c = el.cat;
+  const map = {
+    '鹼金屬':{zhHant:'鹼金屬最外層只有一個電子，極易失去而形成 +1 價陽離子。這使得它們化學活性極高，能與水劇烈反應生成氫氧化合物和氫氣，也極易與氧氣、鹵素、硫等非金屬直接化合。因為活性太強，自然界中不存在游離態的鹼金屬，通常儲存在礦物油中隔絕空氣與水分。',zhHans:'碱金属最外层只有一个电子，极易失去而形成 +1 价阳离子。这使得它们化学活性极高，能与水剧烈反应生成氢氧化物和氢气，也极易与氧气、卤素、硫等非金属直接化合。因为活性太强，自然界中不存在游离态的碱金属，通常储存在矿物油中隔绝空气与水分。',en:'Alkali metals have a single valence electron that is easily lost to form +1 cations, making them extremely reactive. They react violently with water to produce hydroxide and hydrogen gas, and combine directly with oxygen, halogens and sulfur. Because of their high reactivity, they never occur naturally in elemental form and are usually stored under mineral oil to exclude air and moisture.'},
+    '鹼土金屬':{zhHant:'鹼土金屬最外層有兩個電子，容易失去形成 +2 價陽離子，化學活性僅次於鹼金屬。它們能與水反應（鎂需熱水，鈣與冷水反應較慢），在空氣中燃燒生成氧化物，並能與鹵素、硫等非金屬化合。其氧化物呈鹼性，難溶於水。',zhHans:'碱土金属最外层有两个电子，容易失去形成 +2 价阳离子，化学活性仅次于碱金属。它们能与水反应（镁需热水，钙与冷水反应较慢），在空气中燃烧生成氧化物，并能与卤素、硫等非金属化合。其氧化物呈碱性，难溶于水。',en:'Alkaline earth metals have two valence electrons and readily form +2 cations. Their reactivity is slightly lower than that of alkali metals. They react with water (magnesium requires hot water; calcium reacts slowly with cold water), burn in air to form oxides, and combine with halogens and sulfur. Their oxides are basic and sparingly soluble in water.'},
+    '過渡金屬':{zhHant:'過渡金屬具有部分填充的 d 軌域，能呈現多種氧化態（如鐵的 +2、+3，錳的 +2 至 +7），並形成豐富的配位化合物。它們通常具有良好的導電、導熱性與延展性，許多元素及其化合物具有催化活性，是工業催化劑的重要來源。',zhHans:'过渡金属具有部分填充的 d 轨道，能呈现多种氧化态（如铁的 +2、+3，锰的 +2 至 +7），并形成丰富的配位化合物。它们通常具有良好的导电、导热性与延展性，许多元素及其化合物具有催化活性，是工业催化剂的重要来源。',en:'Transition metals have partially filled d orbitals, exhibit multiple oxidation states (e.g., Fe +2/+3, Mn +2 to +7) and form rich coordination compounds. They are typically good conductors of heat and electricity, malleable, and many serve as catalysts, making them vital industrial catalysts.'},
+    '鑭系':{zhHant:'鑭系元素的最外層電子構型相似，化學性質相近，主要以 +3 氧化態存在。它們活性較高，能與水及酸反應，在空氣中易氧化失去光澤，因此需妥善保存。鑭系元素常用於製造強力磁鐵與發光材料。',zhHans:'镧系元素的最外层电子构型相似，化学性质相近，主要以 +3 氧化态存在。它们活性较高，能与水及酸反应，在空气中易氧化失去光泽，因此需妥善保存。镧系元素常用于制造强力磁铁与发光材料。',en:'Lanthanides share similar outer electron configurations, giving them closely related chemical properties. They exist mainly in the +3 oxidation state, are fairly reactive, react with water and acids, and oxidise readily in air, requiring careful storage. They are widely used in strong magnets and luminescent materials.'},
+    '錒系':{zhHant:'錒系元素均具放射性，最外層電子構型多樣。鈾、鈽等可用作核燃料；錒系金屬化學活性高，能與水、氧氣反應，且多數具有自燃性。由於放射性強，操作時需嚴格防護。',zhHans:'锕系元素均具放射性，最外层电子构型多样。铀、钚等可用作核燃料；锕系金属化学活性高，能与水、氧气反应，且多数具有自燃性。由于放射性强，操作时需严格防护。',en:'All actinides are radioactive. Their outer electron configurations vary. Uranium and plutonium serve as nuclear fuels; actinide metals are chemically reactive, react with water and oxygen, and many are pyrophoric. Due to intense radioactivity, strict precautions are required.'},
+    '鹵素':{zhHant:'鹵素最外層有七個電子，極易獲得一個電子形成 -1 價陰離子，氧化性很強。氟是最強的氧化劑之一；氯、溴、碘的氧化性依次減弱。鹵素能與大多數金屬及非金屬反應，生成鹵化物，其活潑性隨原子序增加而降低。',zhHans:'卤素最外层有七个电子，极易获得一个电子形成 -1 价阴离子，氧化性很强。氟是最强的氧化剂之一；氯、溴、碘的氧化性依次减弱。卤素能与大多数金属及非金属反应，生成卤化物，其活泼性随原子序增加而降低。',en:'Halogens have seven valence electrons and readily gain one electron to form -1 anions, making them strong oxidising agents. Fluorine is one of the strongest oxidisers; oxidising power decreases from chlorine to bromine to iodine. Halogens react with most metals and nonmetals to form halides, with reactivity decreasing down the group.'},
+    '稀有氣體':{zhHant:'稀有氣體的價電子層已填滿，化學性質極不活潑，通常以單原子氣體形式存在。在極端條件下，氙、氪等可與氟、氧形成少數化合物（如 XeF₄、XeO₃）。它們的沸點極低，常被用作低溫冷卻劑與保護氣。',zhHans:'稀有气体的价电子层已填满，化学性质极不活泼，通常以单原子气体形式存在。在极端条件下，氙、氪等可与氟、氧形成少数化合物（如 XeF₄、XeO₃）。它们的沸点极低，常被用作低温冷却剂与保护气。',en:'Noble gases have filled valence shells and are chemically inert, existing as monatomic gases. Under extreme conditions, xenon and krypton can form a few compounds with fluorine and oxygen (e.g., XeF₄, XeO₃). Their extremely low boiling points make them useful as cryogenic coolants and shielding gases.'},
+    '類金屬':{zhHant:'類金屬的性質介於金屬與非金屬之間，常表現出半導體特性，並能形成酸性或鹼性氧化物。它們的化學活性因元素而異，例如硼在常溫下非常穩定，而砷則具有一定的毒性與反應性。',zhHans:'类金属的性质介于金属与非金属之间，常表现出半导体特性，并能形成酸性或碱性氧化物。它们的化学活性因元素而异，例如硼在常温下非常稳定，而砷则具有一定的毒性与反应性。',en:'Metalloids have properties intermediate between metals and nonmetals, often showing semiconductor behaviour and forming acidic or basic oxides. Chemical reactivity varies by element; for example, boron is very stable at room temperature, while arsenic has significant toxicity and reactivity.'},
+    '非金屬':{zhHant:'非金屬的價電子層通常未填滿，傾向於獲得或共用電子。它們可形成共價分子、離子或網狀固體，化學性質多樣，從高活性的氟、氧到惰性的碳皆有。非金屬是構成有機物與生命體的核心元素。',zhHans:'非金属的价电子层通常未填满，倾向于获得或共用电子。它们可形成共价分子、离子或网状固体，化学性质多样，从高活性的氟、氧到惰性的碳皆有。非金属是构成有机物与生命体的核心元素。',en:'Nonmetals usually have incompletely filled valence shells and tend to gain or share electrons. They form covalent molecules, ions or network solids, with chemical behaviour ranging from highly reactive fluorine and oxygen to relatively inert carbon. Nonmetals are core elements in organic matter and living organisms.'},
+    '貧金屬':{zhHant:'貧金屬的性質介於過渡金屬與類金屬之間，熔點較低、質地較軟，但仍具有金屬光澤與導電性。它們的化學活性中等，能與酸或鹼反應，常用於製造合金與半導體材料。',zhHans:'贫金属的性质介于过渡金属与类金属之间，熔点较低、质地较软，但仍具有金属光泽与导电性。它们的化学活性中等，能与酸或碱反应，常用于制造合金与半导体材料。',en:'Post-transition metals have properties between transition metals and metalloids. They are softer, lower-melting, but still lustrous and conductive, with moderate chemical reactivity. They react with acids or bases and are often used in alloys and semiconductors.'},
+    '超重元素':{zhHant:'超重元素為人工合成的放射性元素，半衰期極短（多在毫秒至秒級），化學性質主要依靠理論預測。它們的合成驗證了核物理學的理論模型，但實際化學研究極其困難。',zhHans:'超重元素为人工合成的放射性元素，半衰期极短（多在毫秒至秒级），化学性质主要依靠理论预测。它们的合成验证了核物理学的理论模型，但实际化学研究极其困难。',en:'Superheavy elements are synthetic radioactive elements with very short half-lives (often milliseconds to seconds); their chemistry is largely predicted theoretically. Their synthesis validates nuclear physics models, but practical chemical studies are extremely difficult.'}
+  };
+  return (map[c]||map['過渡金屬'])[langKey];
+}
+
+function getOccurrence(el, langKey){
+  if(SPECIFIC[el.num] && SPECIFIC[el.num].occurrence && SPECIFIC[el.num].occurrence[langKey]) return SPECIFIC[el.num].occurrence[langKey];
+  const c = el.cat;
+  const map = {
+    '鹼金屬':{zhHant:'以化合物形式存在於海水、鹽湖與礦物（如岩鹽、鋰輝石）中，因化學活性高而不以單質存在於自然界。它們在海水中的含量豐富，是工業提取的重要來源。',zhHans:'以化合物形式存在于海水、盐湖与矿物（如岩盐、锂辉石）中，因化学活性高而不以单质存在于自然界。它们在海水中的含量丰富，是工业提取的重要来源。',en:'Occurs as compounds in seawater, salt lakes and minerals (e.g., rock salt, spodumene); never found free because of its high reactivity. Seawater is a rich source and an important industrial feedstock.'},
+    '鹼土金屬':{zhHant:'以碳酸鹽、硫酸鹽與矽酸鹽礦物形式存在，如石灰石、白雲石、石膏，不以單質存在。它們在地殼中分佈廣泛，是構成岩石與土壤的重要成分。',zhHans:'以碳酸盐、硫酸盐与硅酸盐矿物形式存在，如石灰石、白云石、石膏，不以单质存在。它们在地壳中分布广泛，是构成岩石与土壤的重要成分。',en:'Occurs as carbonate, sulfate and silicate minerals such as limestone, dolomite and gypsum; never found free. They are widely distributed in the crust and are important components of rocks and soil.'},
+    '過渡金屬':{zhHant:'多以氧化物、硫化物或矽酸鹽礦物形式存在於地殼中，少數（如金、銀、銅）可以單質形式存在。它們的礦床類型多樣，是全球礦產資源的重要組成部分。',zhHans:'多以氧化物、硫化物或硅酸盐矿物形式存在于地壳中，少数（如金、银、铜）可以单质形式存在。它们的矿床类型多样，是全球矿产资源的重要组成部分。',en:'Mostly found in Earth\'s crust as oxide, sulfide or silicate minerals; a few (e.g., gold, silver, copper) can occur natively. They form diverse ore deposits and are key global mineral resources.'},
+    '鑭系':{zhHant:'以磷酸鹽、碳酸鹽與矽酸鹽礦物（如獨居石、氟碳鈰礦）形式存在，常彼此共生，分離困難。它們在地殼中並不罕見，但提純技術複雜，被稱為「稀土元素」。',zhHans:'以磷酸盐、碳酸盐与硅酸盐矿物（如独居石、氟碳铈矿）形式存在，常彼此共生，分离困难。它们在地壳中并不罕见，但提纯技术复杂，被称为“稀土元素”。',en:'Occurs in phosphate, carbonate and silicate minerals (e.g., monazite, bastnäsite), often together, making separation difficult. They are not rare in the crust but require complex purification, hence the name "rare-earth elements".'},
+    '錒系':{zhHant:'鈾、釷等以礦物形式存在於地殼；錼及以後的元素多為人工合成，自然界含量極微或不存在。鈾礦是核能工業的基礎資源，主要分佈於澳洲、哈薩克等地。',zhHans:'铀、钍等以矿物形式存在于地壳；镎及以后的元素多为人工合成，自然界含量极微或不存在。铀矿是核能工业的基础资源，主要分布于澳洲、哈萨克等地。',en:'Uranium and thorium occur in crustal minerals; neptunium and heavier elements are mostly synthetic and occur only in trace amounts or not at all in nature. Uranium ore is the foundation of the nuclear industry, mainly in Australia and Kazakhstan.'},
+    '鹵素':{zhHant:'以鹵化物礦物（如食鹽、螢石）與海水中的鹵離子形式存在，不以單質大量存在。海洋是鹵素最大的儲庫，海水中含有大量的氯、溴與碘。',zhHans:'以卤化物矿物（如食盐、萤石）与海水中的卤离子形式存在，不以单质大量存在。海洋是卤素最大的储库，海水中含有大量的氯、溴与碘。',en:'Occurs as halide minerals (e.g., halite, fluorite) and as halide ions in seawater; not abundant in elemental form. The oceans are the largest reservoir, containing abundant chlorine, bromine and iodine.'},
+    '稀有氣體':{zhHant:'主要以單原子氣體形式存在於大氣中，含量極低；氦也來自天然氣田與放射性衰變。它們的提取依賴空氣分餾或天然氣處理，成本較高。',zhHans:'主要以单原子气体形式存在于大气中，含量极低；氦也来自天然气田与放射性衰变。它们的提取依赖空气分馏或天然气处理，成本较高。',en:'Occurs mainly as monatomic gases in the atmosphere at very low concentrations; helium also comes from natural-gas fields and radioactive decay. Extraction relies on air fractionation or natural-gas processing, making them costly.'},
+    '類金屬':{zhHant:'以硫化物、氧化物或單質形式存在於地殼中，含量差異很大。例如矽以氧化物形式大量存在，而砷、銻等多以硫化物形式伴生於金屬礦中。',zhHans:'以硫化物、氧化物或单质形式存在于地壳中，含量差异很大。例如硅以氧化物形式大量存在，而砷、锑等多以硫化物形式伴生于金属矿中。',en:'Occurs in Earth\'s crust as sulfides, oxides or native elements, with widely varying abundance. For example, silicon occurs abundantly as oxide, while arsenic and antimony are mostly found as sulfides associated with metal ores.'},
+    '非金屬':{zhHant:'以單質（如氧氣、氮氣、硫、碳）或化合物（如水、碳酸鹽、磷酸鹽）形式存在。它們是構成大氣、海洋與生物體的主要元素，分佈極為廣泛。',zhHans:'以单质（如氧气、氮气、硫、碳）或化合物（如水、碳酸盐、磷酸盐）形式存在。它们是构成大气、海洋与生物体的主要元素，分布极为广泛。',en:'Occurs as native elements (e.g., oxygen, nitrogen, sulfur, carbon) or compounds (e.g., water, carbonates, phosphates). They are the main elements of the atmosphere, oceans and living organisms, extremely widely distributed.'},
+    '貧金屬':{zhHant:'多以硫化物或氧化物礦物形式存在，部分（如錫、鉍）也可見單質。它們在地殼中的丰度較低，常與其他金屬礦共生，需要複雜的冶煉過程提取。',zhHans:'多以硫化物或氧化物矿物形式存在，部分（如锡、铋）也可见单质。它们在地壳中的丰度较低，常与其他金属矿共生，需要复杂的冶炼过程提取。',en:'Mostly found as sulfide or oxide minerals; some (e.g., tin, bismuth) also occur natively. They are relatively scarce in the crust, often associated with other metal ores, and require complex smelting for extraction.'},
+    '超重元素':{zhHant:'全部為人工合成，透過核反應與粒子加速器製備，半衰期極短，自然界不存在。它們只能在實驗室中合成極少量原子，存活時間通常只有幾毫秒到幾秒。',zhHans:'全部为人工合成，通过核反应与粒子加速器制备，半衰期极短，自然界不存在。它们只能在实验室中合成极少量原子，存活时间通常只有几毫秒到几秒。',en:'All synthetic, produced via nuclear reactions and particle accelerators; half-lives are extremely short and they do not occur in nature. Only a few atoms can be synthesised in the laboratory, typically surviving from milliseconds to seconds.'}
+  };
+  return (map[c]||map['過渡金屬'])[langKey];
+}
+
+function getUses(el, langKey){
+  if(SPECIFIC[el.num] && SPECIFIC[el.num].uses && SPECIFIC[el.num].uses[langKey]) return SPECIFIC[el.num].uses[langKey];
+  const c = el.cat;
+  const map = {
+    '鹼金屬':{zhHant:'鹼金屬及其化合物用於電池、玻璃、肥皂、肥料與有機合成；鈉、鉀的化合物也是重要的工業原料，例如食鹽與純鹼。此外，液態鈉在核反應爐中用作冷卻劑。',zhHans:'碱金属及其化合物用于电池、玻璃、肥皂、肥料与有机合成；钠、钾的化合物也是重要的工业原料，例如食盐与纯碱。此外，液态钠在核反应堆中用作冷却剂。',en:'Alkali metals and their compounds are used in batteries, glass, soap, fertilisers and organic synthesis; sodium and potassium compounds are important industrial feedstocks (e.g., table salt, soda ash). Liquid sodium is used as a nuclear reactor coolant.'},
+    '鹼土金屬':{zhHant:'用於輕合金、耐火材料、水泥、煙火與生物醫學（如鈣、鎂補充劑）。鎂合金在航空與汽車工業中廣泛應用，而鈣化合物則是建築材料的重要成分。',zhHans:'用于轻合金、耐火材料、水泥、烟火与生物医学（如钙、镁补充剂）。镁合金在航空与汽车工业中广泛应用，而钙化合物则是建筑材料的重要成分。',en:'Used in light alloys, refractories, cement, fireworks and biomedicine (e.g., calcium and magnesium supplements). Magnesium alloys are widely used in aerospace and automotive industries, while calcium compounds are key construction materials.'},
+    '過渡金屬':{zhHant:'廣泛用於結構材料、導電材料、催化劑、磁性材料與合金。例如鐵與鋁用於建築，銅用於電線，鉑、鈀用於汽車觸媒轉化器，鈦合金用於航空航天。',zhHans:'广泛用于结构材料、导电材料、催化剂、磁性材料与合金。例如铁与铝用于建筑，铜用于电线，铂、钯用于汽车触媒转化器，钛合金用于航空航天。',en:'Widely used in structural materials, conductors, catalysts, magnetic materials and alloys. For example, iron and aluminium in construction, copper in wiring, platinum and palladium in catalytic converters, and titanium alloys in aerospace.'},
+    '鑭系':{zhHant:'用於強力磁鐵（釹鐵硼）、螢光粉、雷射、玻璃拋光與石油裂解催化劑。釹鐵硼磁鐵是目前磁性最強的永磁材料，廣泛應用於電動車與風力發電機。',zhHans:'用于强力磁铁（钕铁硼）、荧光粉、激光、玻璃抛光与石油裂解催化剂。钕铁硼磁铁是目前磁性最强的永磁材料，广泛应用于电动车与风力发电机。',en:'Used in strong magnets (NdFeB), phosphors, lasers, glass polishing and petroleum cracking catalysts. NdFeB magnets are the strongest permanent magnets currently known, widely used in electric vehicles and wind turbines.'},
+    '錒系':{zhHant:'鈾、鈽用於核燃料與核武器；鋂用於煙霧探測器；釷被視為潛在核燃料。這些元素的應用與核能技術密切相關，同時也用於放射性示蹤與醫學研究。',zhHans:'铀、钚用于核燃料与核武器；镅用于烟雾探测器；钍被视为潜在核燃料。这些元素的应用与核能技术密切相关，同时也用于放射性示踪与医学研究。',en:'Uranium and plutonium for nuclear fuel and weapons; americium in smoke detectors; thorium as a potential nuclear fuel. Their applications are closely tied to nuclear technology, as well as radioactive tracing and medical research.'},
+    '鹵素':{zhHant:'用於消毒、漂白、製藥、塑料（PVC）與攝影材料。氯是自來水消毒的關鍵化學品，碘用於消毒與甲狀腺健康，氟則用於牙膏與含氟聚合物。',zhHans:'用于消毒、漂白、制药、塑料（PVC）与摄影材料。氯是自来水消毒的关键化学品，碘用于消毒与甲状腺健康，氟则用于牙膏与含氟聚合物。',en:'Used in disinfection, bleaching, pharmaceuticals, plastics (PVC) and photographic materials. Chlorine is key for water disinfection, iodine for antiseptics and thyroid health, and fluorine in toothpaste and fluoropolymers.'},
+    '稀有氣體':{zhHant:'用於照明、焊接保護、低溫冷卻、雷射與醫療（如氦氧混合氣）。氖用於霓虹燈，氬用於焊接保護，液氦用於超導磁鐵冷卻，氙可用於麻醉與車燈。',zhHans:'用于照明、焊接保护、低温冷却、激光与医疗（如氦氧混合气）。氖用于霓虹灯，氩用于焊接保护，液氦用于超导磁铁冷却，氙可用于麻醉与车灯。',en:'Used in lighting, welding shielding, cryogenic cooling, lasers and medicine (e.g., helium-oxygen mixtures). Neon in signs, argon in welding, liquid helium for superconducting magnets, and xenon in anaesthesia and headlights.'},
+    '類金屬':{zhHant:'用於半導體、合金、玻璃與陶瓷；砷、銻等也用於農藥與阻燃劑（受嚴格管制）。矽是半導體工業的基石，鍺用於紅外光學與光纖，硼用於玻璃與陶瓷。',zhHans:'用于半导体、合金、玻璃与陶瓷；砷、锑等也用于农药与阻燃剂（受严格管制）。硅是半导体工业的基石，锗用于红外光学与光纤，硼用于玻璃与陶瓷。',en:'Used in semiconductors, alloys, glass and ceramics; arsenic and antimony are also used in pesticides and flame retardants (strictly regulated). Silicon is the cornerstone of the semiconductor industry, germanium for infrared optics and fibre optics, and boron in glass and ceramics.'},
+    '非金屬':{zhHant:'用於化工、肥料、燃料、半導體與生物醫學等領域。氫用於合成氨，氧用於醫療與煉鋼，氮用於惰性氣氛保護，碳是燃料與有機化學的基礎。',zhHans:'用于化工、肥料、燃料、半导体与生物医学等领域。氢用于合成氨，氧用于医疗与炼钢，氮用于惰性气氛保护，碳是燃料与有机化学的基础。',en:'Used in chemicals, fertilisers, fuels, semiconductors and biomedicine. Hydrogen for ammonia synthesis, oxygen for medical use and steelmaking, nitrogen for inert atmospheres, and carbon as the basis of fuels and organic chemistry.'},
+    '貧金屬':{zhHant:'用於合金、鍍層、焊料、電池與半導體（如鎵、銦）。鋁用於輕質結構材料，錫用於焊料與鍍錫鐵皮，銦用於觸控螢幕的透明導電層（ITO）。',zhHans:'用于合金、镀层、焊料、电池与半导体（如镓、铟）。铝用于轻质结构材料，锡用于焊料与镀锡铁皮，铟用于触摸屏的透明导电层（ITO）。',en:'Used in alloys, coatings, solders, batteries and semiconductors (e.g., gallium, indium). Aluminium for lightweight structures, tin for solders and tinplate, and indium for transparent conductive layers (ITO) in touchscreens.'},
+    '超重元素':{zhHant:'目前僅供基礎科學研究，無實際應用。它們的合成有助於理解原子核的穩定性與化學性質的極限，並推動核物理學的發展。',zhHans:'目前仅供基础科学研究，无实际应用。它们的合成有助于理解原子核的稳定性与化学性质的极限，并推动核物理学的发展。',en:'Currently only for basic scientific research; no practical applications. Their synthesis helps understand the limits of nuclear stability and chemical properties, advancing nuclear physics.'}
+  };
+  return (map[c]||map['過渡金屬'])[langKey];
+}
+
+function getFunFact(el, langKey){
+  if(SPECIFIC[el.num] && SPECIFIC[el.num].fact && SPECIFIC[el.num].fact[langKey]) return SPECIFIC[el.num].fact[langKey];
+  const c = el.cat;
+  const map = {
+    '鹼金屬':{zhHant:'鹼金屬的焰色反應各具特色：鋰呈洋紅色、鈉呈黃色、鉀呈紫色、銣呈紫紅色、銫呈藍色。這些鮮豔的色彩常被用於煙火與焰色試驗中。',zhHans:'碱金属的焰色反应各具特色：锂呈洋红色、钠呈黄色、钾呈紫色、铷呈紫红色、铯呈蓝色。这些鲜艳的色彩常被用于烟火与焰色试验中。',en:'Alkali metals have distinctive flame colours: lithium crimson, sodium yellow, potassium violet, rubidium red-violet and caesium blue. These vivid colours are often used in fireworks and flame tests.'},
+    '鹼土金屬':{zhHant:'鹼土金屬的焰色反應同樣鮮明：鈣呈橙紅色、鍶呈深紅色、鋇呈綠色，常用於煙火。鍶鹽是紅色煙火的主要發色劑。',zhHans:'碱土金属的焰色反应同样鲜明：钙呈橙红色、锶呈深红色、钡呈绿色，常用于烟火。锶盐是红色烟火的主要发色剂。',en:'Alkaline earth metals also give vivid flame colours: calcium orange-red, strontium crimson and barium green, widely used in fireworks. Strontium salts are the main colourant in red fireworks.'},
+    '過渡金屬':{zhHant:'過渡金屬的化合物常因 d-d 電子躍遷而呈現豐富顏色，例如銅鹽呈藍色、鐵鹽呈黃或綠色、鉻鹽呈橙或綠色。許多寶石（如紅寶石、藍寶石）的顏色也來自過渡金屬離子。',zhHans:'过渡金属的化合物常因 d-d 电子跃迁而呈现丰富颜色，例如铜盐呈蓝色、铁盐呈黄或绿色、铬盐呈橙或绿色。许多宝石（如红宝石、蓝宝石）的颜色也来自过渡金属离子。',en:'Transition-metal compounds often show rich colours due to d-d electronic transitions, e.g., copper salts blue, iron salts yellow or green, chromium salts orange or green. Many gemstones (e.g., ruby, sapphire) derive their colour from transition-metal ions.'},
+    '鑭系':{zhHant:'鑭系元素因 4f 電子躍遷而具有獨特的發光性質，是螢光粉與 LED 螢光材料的重要成分。銪用於紅色螢光粉，鋱用於綠色螢光粉，是彩色顯示技術的關鍵。',zhHans:'镧系元素因 4f 电子跃迁而具有独特的发光性质，是荧光粉与 LED 荧光材料的重要成分。铕用于红色荧光粉，铽用于绿色荧光粉，是彩色显示技术的关键。',en:'Lanthanides exhibit characteristic luminescence from 4f electron transitions and are key components of phosphors and LED materials. Europium is used in red phosphors and terbium in green phosphors, crucial to colour display technology.'},
+    '錒系':{zhHant:'所有錒系元素都具有放射性，其中鈾是自然界中最重的天然元素。鈾的放射性衰變是地球內部熱量的重要來源之一。',zhHans:'所有锕系元素都具有放射性，其中铀是自然界中最重的天然元素。铀的放射性衰变是地球内部热量的重要来源之一。',en:'All actinides are radioactive; uranium is the heaviest naturally occurring element. The radioactive decay of uranium is one of the important sources of Earth\'s internal heat.'},
+    '鹵素':{zhHant:'鹵素的顏色隨原子序增加而加深：氟淡黃、氯黃綠、溴紅棕、碘紫黑。碘在加熱時會直接昇華為紫色的美麗蒸氣。',zhHans:'卤素的颜色随原子序增加而加深：氟淡黄、氯黄绿、溴红棕、碘紫黑。碘在加热时会直接升华为紫色的美丽蒸气。',en:'Halogen colour deepens with atomic number: fluorine pale yellow, chlorine yellow-green, bromine red-brown, iodine purple-black. Iodine sublimes directly to a beautiful purple vapour when heated.'},
+    '稀有氣體':{zhHant:'稀有氣體在放電管中會發出特有色光：氖呈橙紅、氬呈藍紫、氪呈淡紫、氙呈藍白，常用於霓虹燈。霓虹燈的英文 neon light 即源自氖。',zhHans:'稀有气体在放电管中会发出特有色光：氖呈橙红、氩呈蓝紫、氪呈淡紫、氙呈蓝白，常用于霓虹灯。霓虹灯的英文 neon light 即源自氖。',en:'Noble gases emit characteristic colours in discharge tubes: neon orange-red, argon blue-violet, krypton pale violet, xenon blue-white, used in neon signs. The word "neon light" comes directly from neon.'},
+    '類金屬':{zhHant:'類金屬常被用作半導體材料，矽與鍺是現代電子工業的基石。高純度矽的製備技術推動了電腦與手機的微型化革命。',zhHans:'类金属常被用作半导体材料，硅与锗是现代电子工业的基石。高纯度硅的制备技术推动了电脑与手机的微型化革命。',en:'Metalloids are often used as semiconductors; silicon and germanium are the foundation of the modern electronics industry. High-purity silicon production has driven the miniaturisation revolution in computers and phones.'},
+    '非金屬':{zhHant:'非金屬涵蓋了宇宙中最豐富的元素（氫、氧、碳），也是生命化學的基礎。碳能形成數以百萬計的有機化合物，是生命多樣性的根源。',zhHans:'非金属涵盖了宇宙中最丰富的元素（氢、氧、碳），也是生命化学的基础。碳能形成数以百万计的有机化合物，是生命多样性的根源。',en:'Nonmetals include the most abundant elements in the universe (hydrogen, oxygen, carbon) and form the basis of life chemistry. Carbon can form millions of organic compounds, the root of life\'s diversity.'},
+    '貧金屬':{zhHant:'鎵的熔點僅約 29.8°C，握在手中即可熔化；銦錫氧化物（ITO）是觸控螢幕的透明導電層。鉍的晶體具有獨特的彩虹色階梯狀結構。',zhHans:'镓的熔点仅约 29.8°C，握在手中即可熔化；铟锡氧化物（ITO）是触摸屏的透明导电层。铋的晶体具有独特的彩虹色阶梯状结构。',en:'Gallium melts at only about 29.8°C, so it melts in your hand; indium tin oxide (ITO) is the transparent conductive layer in touchscreens. Bismuth crystals have a distinctive iridescent stair-step structure.'},
+    '超重元素':{zhHant:'超重元素的半衰期通常極短，但它們的存在驗證了核物理理論與「穩定島」假說。科學家仍在尋找壽命更長的超重元素同位素。',zhHans:'超重元素的半衰期通常极短，但它们的存在验证了核物理理论与“稳定岛”假说。科学家仍在寻找寿命更长的超重元素同位素。',en:'Superheavy elements usually have extremely short half-lives, but their existence tests nuclear theory and the "island of stability" hypothesis. Scientists continue to search for longer-lived superheavy isotopes.'}
+  };
+  return (map[c]||map['過渡金屬'])[langKey];
+}
+
+/* ============================================================
+   6. 安全警示
+   ============================================================ */
+function getSafety(el, langKey){
+  const t = I18N[langKey === 'zhHant' ? 'zh-Hant' : (langKey === 'zhHans' ? 'zh-Hans' : 'en')];
+  const sym = el.sym;
+  const specific = {
+    'Hg':{
+      'zhHant':'口服 1 克金屬汞本身吸收率極低，但若在體內氧化或攝入的是可溶性汞鹽（如氯化汞），0.5–1 克即可致死。金屬汞蒸氣吸入同樣致命。此處的「1 克單質」若為液態汞，主要危險在於長期蒸氣暴露與可能的氧化產物。無論如何，汞的任何形態都具強烈神經毒性，禁止吞食。',
+      'zhHans':'口服 1 克金属汞本身吸收率极低，但若在体内氧化或摄入的是可溶性汞盐（如氯化汞），0.5–1 克即可致死。金属汞蒸气吸入同样致命。此处的「1 克单质」若为液态汞，主要危险在于长期蒸气暴露与可能的氧化产物。无论如何，汞的任何形态都具强烈神经毒性，禁止吞食。',
+      'en':'Ingesting 1 g of liquid mercury metal itself has very low absorption, but if oxidised in the body or consumed as a soluble mercury salt (e.g., mercuric chloride), 0.5–1 g can be fatal. Inhaling mercury vapour is also lethal. The main danger of 1 g of elemental liquid mercury lies in chronic vapour exposure and possible oxidation products. All forms of mercury are strongly neurotoxic; never ingest.'
+    },
+    'Tl':{
+      'zhHant':'鉈的成人致死量不足 1 克（約 0.6 克即可致命）。口服 1 克鉈鹽會迅速經消化道吸收，模擬鉀離子進入細胞，攻擊中樞與周圍神經系統，引發劇烈神經痛、脫髮、多器官衰竭，死亡可能在數天內發生。',
+      'zhHans':'铊的成人致死量不足 1 克（约 0.6 克即可致命）。口服 1 克铊盐会迅速经消化道吸收，模拟钾离子进入细胞，攻击中枢与周围神经系统，引发剧烈神经痛、脱发、多器官衰竭，死亡可能在数天内发生。',
+      'en':'The lethal dose of thallium for an adult is less than 1 g (about 0.6 g can be fatal). Ingesting 1 g of a thallium salt is rapidly absorbed through the gastrointestinal tract, mimics potassium ions to enter cells, attacks the central and peripheral nervous systems, causing severe neuralgia, hair loss and multi-organ failure; death can occur within days.'
+    },
+    'Na':{
+      'zhHant':'鈉遇水劇烈反應。口腔與胃中充滿水分與黏液，吞下 1 克金屬鈉會在黏膜表面瞬間生成氫氧化鈉（強鹼）與氫氣，造成爆炸性局部反應、深度化學灼傷、食道與胃穿孔，並可能因氫氣積聚引發氣胸或栓塞。極度危險，可迅速致死。',
+      'zhHans':'钠遇水剧烈反应。口腔与胃中充满水分与黏液，吞下 1 克金属钠会在黏膜表面瞬间生成氢氧化钠（强碱）与氢气，造成爆炸性局部反应、深度化学灼伤、食道与胃穿孔，并可能因氢气积聚引发气胸或栓塞。极度危险，可迅速致死。',
+      'en':'Sodium reacts violently with water. The mouth and stomach are filled with water and mucus; swallowing 1 g of sodium metal would instantly generate sodium hydroxide (strong alkali) and hydrogen gas on the mucosal surface, causing explosive local reactions, deep chemical burns, oesophageal and gastric perforation, and potentially pneumothorax or embolism from accumulated hydrogen. Extremely dangerous and can be rapidly fatal.'
+    },
+    'As':{
+      'zhHant':'無機砷的成人致死量約為 0.06–0.2 克（三氧化二砷，砒霜）。口服 1 克遠超致死劑量，會引發劇烈嘔吐、腹痛、血性腹瀉、心血管崩潰，死亡可能在數小時至數天內發生。',
+      'zhHans':'无机砷的成人致死量约为 0.06–0.2 克（三氧化二砷，砒霜）。口服 1 克远超致死剂量，会引发剧烈呕吐、腹痛、血性腹泻、心血管崩溃，死亡可能在数小时至数天内发生。',
+      'en':'The lethal dose of inorganic arsenic for an adult is about 0.06–0.2 g (arsenic trioxide, white arsenic). Ingesting 1 g far exceeds the fatal dose, causing severe vomiting, abdominal pain, bloody diarrhoea and cardiovascular collapse; death can occur within hours to days.'
+    },
+    'Pb':{
+      'zhHant':'口服 1 克可溶性鉛鹽會引起急性鉛中毒：口腔金屬味、劇烈腹絞痛（鉛疝痛）、嘔吐、便秘或腹瀉，隨後可能出現貧血、腎損傷與腦病。雖然急性致死不如砷、鉈迅速，但 1 克是極高劑量，必須立即就醫。',
+      'zhHans':'口服 1 克可溶性铅盐会引起急性铅中毒：口腔金属味、剧烈腹绞痛（铅疝痛）、呕吐、便秘或腹泻，随后可能出现贫血、肾损伤与脑病。虽然急性致死不如砷、铊迅速，但 1 克是极高剂量，必须立即就医。',
+      'en':'Ingesting 1 g of soluble lead salts causes acute lead poisoning: metallic taste, severe abdominal colic (lead colic), vomiting, constipation or diarrhoea, followed by anaemia, kidney injury and encephalopathy. Although less rapidly fatal than arsenic or thallium, 1 g is an extremely high dose and requires immediate medical attention.'
+    }
+  };
+  if(specific[sym] && specific[sym][langKey]) return specific[sym][langKey];
+
+  const radioactive = ['Tc','Po','At','Rn','Fr','Ra','Ac','Th','Pa','U','Np','Pu','Am','Cm','Bk','Cf','Es','Fm','Md','No','Lr','Rf','Db','Sg','Bh','Hs','Mt','Ds','Rg','Cn','Nh','Fl','Mc','Lv','Ts','Og'];
+  if(radioactive.includes(sym)) return t.safetyRadioactive;
+  if(el.cat==='稀有氣體') return t.safetyNoble;
+  if(el.cat==='鹼金屬') return t.safetyAlkali;
+  if(el.cat==='鹵素') return t.safetyHalogen;
+  if(['Cd','Be','Ba','Cr','Ni','Co','Cu','Zn','Mn','V','Sb','Sn','Bi'].includes(sym)) return t.safetyHeavyMetal;
+  return t.safetyTemplate;
+}
+
+/* ============================================================
+   7. 轉盤繪製與旋轉
+   ============================================================ */
+const canvas = document.getElementById('wheelCanvas');
+const ctx = canvas.getContext('2d');
+const CW = canvas.width, CH = canvas.height;
+const CX = CW/2, CY = CH/2, R = CW/2 - 18;
+
+let rotation = 0;
+let spinning = false;
+
+const COLORS = ELEMENTS.map(e=>e.color);
+const N = 118;
+
+function shadeColor(hex, factor){
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  const f = Math.min(1, Math.max(0, factor));
+  return `rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`;
+}
+
+function drawWheel(){
+  ctx.clearRect(0,0,CW,CH);
+  const seg = (Math.PI*2)/N;
+
+  for(let i=0;i<N;i++){
+    const start = i*seg + rotation;
+    const end = start + seg;
+    ctx.beginPath();
+    ctx.moveTo(CX,CY);
+    ctx.arc(CX,CY,R,start,end);
+    ctx.closePath();
+    const base = COLORS[i];
+    ctx.fillStyle = shadeColor(base, i%2===0 ? 0.55 : 0.38);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,14,23,.55)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    const mid = start + seg/2;
+    ctx.save();
+    ctx.translate(CX,CY);
+    ctx.rotate(mid);
+    const textR = R - 8;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 15px "Segoe UI",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.fillText(ELEMENTS[i].sym, textR - 22, 0);
+    ctx.font = '10px "Segoe UI",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.fillText(ELEMENTS[i].num, textR - 2, 0);
+    ctx.restore();
+  }
+
+  ctx.beginPath();
+  ctx.arc(CX,CY,R+6,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(34,211,238,.25)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+function spin(){
+  if(spinning) return;
+  spinning = true;
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = true;
+  document.getElementById('wheelStatus').textContent = I18N[currentLang].spinning;
+
+  let targetNum;
+  if(window.crypto && window.crypto.getRandomValues){
+    const arr = new Uint32Array(1);
+    window.crypto.getRandomValues(arr);
+    targetNum = (arr[0] % 118) + 1;
+  }else{
+    targetNum = Math.floor(Math.random()*118)+1;
+  }
+
+  const seg = (Math.PI*2)/N;
+  const targetCenter = (targetNum-1)*seg + seg/2;
+  const pointerAngle = -Math.PI/2;
+  const baseRotation = pointerAngle - targetCenter;
+  const extraTurns = 8 + Math.floor(Math.random()*5);
+  const finalRotation = baseRotation + extraTurns*Math.PI*2 + (Math.random()-0.5)*seg*0.25;
+
+  const startRotation = rotation;
+  const delta = finalRotation - startRotation;
+  const duration = 4200 + Math.random()*800;
+  const t0 = performance.now();
+
+  function easeOutCubic(t){ return 1 - Math.pow(1-t,3); }
+
+  function step(now){
+    const elapsed = now - t0;
+    const p = Math.min(1, elapsed/duration);
+    const eased = easeOutCubic(p);
+    rotation = startRotation + delta*eased;
+    drawWheel();
+    if(p < 1){
+      requestAnimationFrame(step);
+    }else{
+      rotation = finalRotation % (Math.PI*2);
+      drawWheel();
+      spinning = false;
+      btn.disabled = false;
+      document.getElementById('wheelStatus').textContent = '';
+      setTimeout(()=>{ showDetail(targetNum); }, 450);
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+/* ============================================================
+   8. 詳情頁渲染
+   ============================================================ */
+let currentLang = 'zh-Hant';
+let currentResultNum = null;
+
+function showDetail(num){
+  currentResultNum = num;
+  const el = byNum.get(num);
+  
+  // 語言鍵值轉換：'zh-Hant' -> 'zhHant', 'zh-Hans' -> 'zhHans', 'en' -> 'en'
+  const langKey = currentLang === 'zh-Hant' ? 'zhHant' : (currentLang === 'zh-Hans' ? 'zhHans' : 'en');
+  const t = I18N[currentLang];
+  
+  const name = currentLang==='zh-Hant' ? el.zhHant : currentLang==='zh-Hans' ? el.zhHans : el.en;
+  const otherName = currentLang==='en' ? el.zhHant : el.en;
+  const massStr = Array.isArray(el.mass) ? `[${el.mass[0]}]` : el.mass;
+  const catName = currentLang==='en' ? (CAT_EN[el.cat]||el.cat) : el.cat;
+
+  const stateMap = {
+    gas:{zhHant:'氣態（Gas）',zhHans:'气态（Gas）',en:'Gas'},
+    liquid:{zhHant:'液態（Liquid）',zhHans:'液态（Liquid）',en:'Liquid'},
+    solid:{zhHant:'固態（Solid）',zhHans:'固态（Solid）',en:'Solid'}
+  };
+  const stateText = stateMap[stateOf(el)][langKey];
+
+  const appearance = getAppearance(el, langKey);
+  const meltHint = getMeltingBoilingHint(el, langKey);
+  const densityHint = getDensityHint(el, langKey);
+  const chemistry = getChemistry(el, langKey);
+  const occurrence = getOccurrence(el, langKey);
+  const uses = getUses(el, langKey);
+  const funFact = getFunFact(el, langKey);
+
+  let compText = t.noCompounds;
+  const c = COMPOUNDS[num];
+  if(c && c[currentLang]) compText = c[currentLang];
+
+  let historyText = '';
+  if(currentLang==='en'){
+    historyText = el.discovery === '古代' ? 'Known since ancient times, this element has been used by humans for thousands of years in various practical and cultural applications.' : `Discovered in ${el.discovery.split('·')[0]} by ${el.discovery.split('·')[1]||'unknown'}, this finding marked an important milestone in the development of modern chemistry.`;
+  }else if(currentLang==='zh-Hans'){
+    historyText = el.discovery === '古代' ? '自古已知，人类在数千年的历史长河中已将其广泛应用于生活与生产之中，对早期文明的发展产生了深远影响。' : `${el.discovery.split('·')[0]}年，由${el.discovery.split('·')[1]||'未知'}首次发现并确认，这一重大发现推动了当时化学理论与工业的迅速发展。`;
+  }else{
+    historyText = el.discovery === '古代' ? '自古已知，人類在數千年的歷史長河中已將其廣泛應用於生活與生產之中，對早期文明的發展產生了深遠影響。' : `${el.discovery.split('·')[0]}年，由${el.discovery.split('·')[1]||'未知'}首次發現並確認，這一重大發現推動了當時化學理論與工業的迅速發展。`;
+  }
+
+  const safety = getSafety(el, langKey);
+
+  const html = `
+    <div class="detail-top">
+      <div class="element-hero">
+        <div class="element-badge" style="background:linear-gradient(135deg,${el.color}44,${el.color}22); border:1px solid ${el.color}66;">
+          <div class="num">${el.num}</div>
+          <div class="sym" style="color:${el.color}">${el.sym}</div>
+        </div>
+        <div class="element-name-block">
+          <h2>${name}</h2>
+          <div class="en">${otherName} · ${el.sym}</div>
+          <div class="element-tags">
+            <span class="tag" style="border-color:${el.color}55; color:${el.color}; background:${el.color}12;">${catName}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">${t.number}</div><div class="value">${el.num}</div></div>
+      <div class="stat-card"><div class="label">${t.atomicMass}</div><div class="value">${massStr} <small>g/mol</small></div></div>
+      <div class="stat-card"><div class="label">${t.category}</div><div class="value" style="font-size:14px;">${catName}</div></div>
+      <div class="stat-card"><div class="label">${t.discovery}</div><div class="value" style="font-size:14px;">${el.discovery}</div></div>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.physicalTitle}</h3>
+      <div class="bullet"><span class="dot">•</span><span><b>${t.stateLabel}：</b>${stateText}</span></div>
+      <div class="bullet"><span class="dot">•</span><span><b>${t.appearanceLabel}：</b>${appearance}</span></div>
+      <div class="bullet"><span class="dot">•</span><span><b>${t.meltingLabel}：</b>${meltHint}</span></div>
+      <div class="bullet"><span class="dot">•</span><span><b>${t.densityLabel}：</b>${densityHint}</span></div>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.chemistryTitle}</h3>
+      <p>${chemistry}</p>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.occurrenceTitle}</h3>
+      <div class="mini-label">${t.distributionLabel}</div>
+      <p>${occurrence}</p>
+      <div class="mini-label" style="margin-top:12px;">${t.usesLabel}</div>
+      <p>${uses}</p>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.factTitle}</h3>
+      <p>${funFact}</p>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.historyTitle}</h3>
+      <p>${historyText}</p>
+    </div>
+
+    <div class="section-block">
+      <h3>◈ ${t.compoundsTitle}</h3>
+      <p>${compText}</p>
+    </div>
+
+    <div class="danger-block">
+      <h3>☠ ${t.safetyTitle}</h3>
+      <p><span class="warn-label">${t.safetyWarn}</span>${safety}</p>
+    </div>
+
+    <button class="again-btn" id="againBtn">${t.again}</button>
+  `;
+
+  document.getElementById('detailContent').innerHTML = html;
+  
+  // 隐藏其他所有页面，显示详情页
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('detailPage').classList.add('active');
+  document.getElementById('detailPage').scrollTop = 0;
+  
+  // 隐藏语言切换栏
+  document.getElementById('langBar').style.display = 'none';
+
+  document.getElementById('againBtn').addEventListener('click', ()=>{
+    document.getElementById('detailPage').classList.remove('active');
+    document.getElementById('wheelPage').classList.add('active');
+    document.getElementById('langBar').style.display = '';
+    document.getElementById('wheelPage').scrollTop = 0;
+  });
+}
+
+/* ============================================================
+   9. 頁面與語言控制
+   ============================================================ */
+function applyLanguage(lang){
+  currentLang = lang;
+  const t = I18N[lang];
+  document.getElementById('i18nTitle').textContent = t.title;
+  document.getElementById('i18nSubtitle').textContent = t.subtitle;
+  document.getElementById('i18nHint').textContent = t.hint;
+  document.getElementById('startBtn').textContent = t.start;
+  document.getElementById('spinBtn').textContent = t.spin;
+  document.querySelectorAll('#langBar button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+  if(currentResultNum && document.getElementById('detailPage').classList.contains('active')){
+    showDetail(currentResultNum);
+  }
+}
+
+document.getElementById('langBar').addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  applyLanguage(btn.dataset.lang);
+});
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  document.getElementById('startPage').classList.remove('active');
+  document.getElementById('wheelPage').classList.add('active');
+  drawWheel();
+});
+
+document.getElementById('spinBtn').addEventListener('click', spin);
+
+// 點擊輪盤即可開始轉動
+document.getElementById('wheelWrap').addEventListener('click', ()=>{
+  if(!document.getElementById('wheelPage').classList.contains('active')) return;
+  if(spinning) return;
+  spin();
+});
+
+/* ============================================================
+   10. 初始化
+   ============================================================ */
+applyLanguage('zh-Hant');
+drawWheel();
+</script>
+</body>
+</html>
