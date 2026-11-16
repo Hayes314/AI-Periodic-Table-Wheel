@@ -114,27 +114,21 @@ function showDetail(num){
   currentResultNum = num;
   const el = byNum.get(num);
   
-  const langKey = currentLang === 'zh-Hant' ? 'zhHant' : (currentLang === 'zh-Hans' ? 'zhHans' : 'en');
+  const langKey = currentLang === 'zh-Hant' ? 'z' : (currentLang === 'zh-Hans' ? 'h' : 'e');
   const t = I18N[currentLang];
-  const detail = ELEMENT_DETAILS[num][langKey];
+  const detail = DETAILS[num][langKey];
   
   const name = currentLang==='zh-Hant' ? el.zhHant : currentLang==='zh-Hans' ? el.zhHans : el.en;
   const otherName = currentLang==='en' ? el.zhHant : el.en;
   const massStr = Array.isArray(el.mass) ? `[${el.mass[0]}]` : el.mass;
   const catName = currentLang==='en' ? (CAT_EN[el.cat]||el.cat) : el.cat;
 
-  const stateMap = {
-    gas:{zhHant:'氣態（Gas）',zhHans:'气态（Gas）',en:'Gas'},
-    liquid:{zhHant:'液態（Liquid）',zhHans:'液态（Liquid）',en:'Liquid'},
-    solid:{zhHant:'固態（Solid）',zhHans:'固态（Solid）',en:'Solid'}
-  };
-  // 簡單的狀態判斷
   const GAS_SYMS = ['H','He','N','O','F','Ne','Cl','Ar','Kr','Xe','Rn'];
   const LIQUID_SYMS = ['Hg','Br'];
-  let stateKey = 'solid';
-  if(GAS_SYMS.includes(el.sym)) stateKey = 'gas';
-  else if(LIQUID_SYMS.includes(el.sym)) stateKey = 'liquid';
-  const stateText = stateMap[stateKey][langKey];
+  let stateText = '';
+  if(GAS_SYMS.includes(el.sym)) stateText = currentLang==='en'?'Gas':(currentLang==='zh-Hant'?'氣態':'气态');
+  else if(LIQUID_SYMS.includes(el.sym)) stateText = currentLang==='en'?'Liquid':(currentLang==='zh-Hant'?'液態':'液态');
+  else stateText = currentLang==='en'?'Solid':(currentLang==='zh-Hant'?'固態':'固态');
 
   let compText = t.noCompounds;
   const c = COMPOUNDS[num];
@@ -176,25 +170,25 @@ function showDetail(num){
     <div class="section-block">
       <h3>◈ ${t.physicalTitle}</h3>
       <div class="bullet"><span class="dot">•</span><span><b>${t.stateLabel}：</b>${stateText}</span></div>
-      <div class="bullet"><span class="dot">•</span><span><b>${t.appearanceLabel}：</b>${detail.app}</span></div>
+      <div class="bullet"><span class="dot">•</span><span><b>${t.appearanceLabel}：</b>${detail.a}</span></div>
     </div>
 
     <div class="section-block">
       <h3>◈ ${t.chemistryTitle}</h3>
-      <p>${detail.chem}</p>
+      <p>${detail.c}</p>
     </div>
 
     <div class="section-block">
       <h3>◈ ${t.occurrenceTitle}</h3>
       <div class="mini-label">${t.distributionLabel}</div>
-      <p>${detail.occ}</p>
+      <p>${detail.o}</p>
       <div class="mini-label" style="margin-top:12px;">${t.usesLabel}</div>
-      <p>${detail.use}</p>
+      <p>${detail.u}</p>
     </div>
 
     <div class="section-block">
       <h3>◈ ${t.factTitle}</h3>
-      <p>${detail.fact}</p>
+      <p>${detail.f}</p>
     </div>
 
     <div class="section-block">
@@ -209,7 +203,7 @@ function showDetail(num){
 
     <div class="danger-block">
       <h3>☠ ${t.safetyTitle}</h3>
-      <p><span class="warn-label">${t.safetyWarn}</span>${detail.safety}</p>
+      <p><span class="warn-label">${t.safetyWarn}</span>${detail.s}</p>
     </div>
 
     <button class="again-btn" id="againBtn">${t.again}</button>
